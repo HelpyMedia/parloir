@@ -229,6 +229,7 @@ export async function runDebate(
     // Phase 1: parallel blind opening. We DO NOT drain injections before
     // opening — agents must start blind. We drain after, before critique.
     await storage.updateSession(session.id, { status: "opening", currentRound: 0 });
+    session.currentRound = 0;
     await runOpeningPhase(session, participants, storage, sink);
 
     await drainInjectionsAndWait(session, "opening", storage, sink, controlPlane);
@@ -256,6 +257,7 @@ export async function runDebate(
         session.protocol.enableAdaptiveRound &&
         round === session.protocol.maxCritiqueRounds
       ) {
+        // Last round and still no consensus — try the adaptive reshuffle.
         await storage.updateSession(session.id, {
           status: "adaptive_round",
           currentRound: round + 1,
@@ -487,13 +489,13 @@ async function drainInjectionsAndWait(
         "Deliberation paused. Add a note to steer the next phase, or resume without interjecting.",
     });
 
-    const paused = await controlPlane.waitIfPauseRequested(session.id);
-    if (paused) {
-      // Restore the phase we were in so the transcript / UI shows us back on
-      // track before the next phase_enter fires.
-      await storage.updateSession(session.id, { status: atPhase });
-      await drainOnce(session, atPhase, storage, sink, controlPlane);
-    }
+    // Once waitIfPauseRequested returns, the pause is resolved either way
+    // (a resume signal arrived, or the flag was cleared out-of-band, or the
+    // timeout expired). Unconditionally restore the phase status and re-drain
+    // so any note submitted during the pause window lands in the next phase.
+    await controlPlane.waitIfPauseRequested(session.id);
+    await storage.updateSession(session.id, { status: atPhase });
+    await drainOnce(session, atPhase, storage, sink, controlPlane);
   }
 }
 
