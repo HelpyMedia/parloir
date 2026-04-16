@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
@@ -18,11 +18,61 @@ import { TopBar } from "./TopBar";
 export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const state = useSessionStream(bundle);
   const insights = deriveInsights(state);
-  const [paused, setPaused] = useState(false);
+  const [pausePending, setPausePending] = useState(false);
+  const [resumePending, setResumePending] = useState(false);
 
+  const sessionId = state.sessionId;
+  const isPaused =
+    state.phase === "paused" || state.humanInjectionPrompt !== null;
   const activeSpeakerId = state.live?.speakerId ?? null;
-  const isSynthesisDone = state.phase === "completed" && state.synthesis !== null;
-  const showPausedOverlay = paused || state.humanInjectionPrompt !== null;
+  const isSynthesisDone =
+    state.phase === "completed" && state.synthesis !== null;
+
+  const requestPause = useCallback(async () => {
+    if (pausePending) return;
+    setPausePending(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/pause`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("pause failed", await res.text());
+      }
+    } finally {
+      setPausePending(false);
+    }
+  }, [pausePending, sessionId]);
+
+  const requestResume = useCallback(async () => {
+    if (resumePending) return;
+    setResumePending(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/resume`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("resume failed", await res.text());
+      }
+    } finally {
+      setResumePending(false);
+    }
+  }, [resumePending, sessionId]);
+
+  const submitInjection = useCallback(
+    async (content: string) => {
+      const res = await fetch(`/api/sessions/${sessionId}/inject`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        console.error("inject failed", await res.text());
+        return;
+      }
+      await requestResume();
+    },
+    [sessionId, requestResume],
+  );
 
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
@@ -59,16 +109,14 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
                 personas={state.personas}
                 personaState={state.personaState}
                 activeSpeakerId={activeSpeakerId}
-                paused={showPausedOverlay}
+                paused={isPaused}
               />
               <AnimatePresence>
-                {showPausedOverlay && (
+                {isPaused && (
                   <PausedOverlay
                     prompt={state.humanInjectionPrompt}
-                    onSubmit={() => {
-                      setPaused(false);
-                    }}
-                    onCancel={() => setPaused(false)}
+                    onSubmit={submitInjection}
+                    onCancel={requestResume}
                   />
                 )}
               </AnimatePresence>
@@ -85,11 +133,13 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
       )}
 
       <StickyActionBar
-        phase={isSynthesisDone ? "completed" : paused ? "paused" : state.phase}
+        phase={
+          isSynthesisDone ? "completed" : isPaused ? "paused" : state.phase
+        }
         canExport={isSynthesisDone}
-        onPauseToggle={() => setPaused((p) => !p)}
-        onInterject={() => setPaused(true)}
-        onAskRound={() => setPaused(true)}
+        onPauseToggle={isPaused ? requestResume : requestPause}
+        onInterject={requestPause}
+        onAskRound={requestPause /* TODO: replace when ask-round plan ships */}
         onExport={() => {
           if (!state.synthesis) return;
           const content =
@@ -100,7 +150,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `parloir-session-${state.sessionId.slice(0, 8)}.md`;
+          a.download = `parloir-session-${sessionId.slice(0, 8)}.md`;
           a.click();
           URL.revokeObjectURL(url);
         }}
