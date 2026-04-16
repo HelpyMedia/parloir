@@ -25,8 +25,8 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  vector,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 export const phaseEnum = pgEnum("phase", [
@@ -266,8 +266,7 @@ export const ragSources = pgTable("rag_sources", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-// pgvector column declared via raw SQL — Drizzle's vector helper needs an extension.
-// Install via migration: CREATE EXTENSION IF NOT EXISTS vector;
+// pgvector column — requires CREATE EXTENSION vector (see db/migrations/0000_setup.sql).
 export const embeddings = pgTable(
   "embeddings",
   {
@@ -277,8 +276,8 @@ export const embeddings = pgTable(
       .references(() => ragSources.id, { onDelete: "cascade" }),
     chunkIndex: integer("chunk_index").notNull(),
     content: text("content").notNull(),
-    // Raw SQL column for pgvector. 1536 = OpenAI text-embedding-3-small dimensions.
-    embedding: sql`vector(1536)`.as("embedding"),
+    // 1536 dims = OpenAI text-embedding-3-small.
+    embedding: vector("embedding", { dimensions: 1536 }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
