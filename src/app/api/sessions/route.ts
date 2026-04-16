@@ -48,26 +48,32 @@ export async function POST(req: NextRequest) {
 
   const protocol = { ...DEFAULT_PROTOCOL, ...(input.protocol ?? {}) };
 
-  const [session] = await db
-    .insert(schema.sessions)
-    .values({
-      title: input.title,
-      question: input.question,
-      context: input.context,
-      protocol,
-      createdBy: input.createdBy,
-      status: "setup",
-    })
-    .returning();
+  try {
+    const [session] = await db
+      .insert(schema.sessions)
+      .values({
+        title: input.title,
+        question: input.question,
+        context: input.context,
+        protocol,
+        createdBy: input.createdBy,
+        status: "setup",
+      })
+      .returning();
 
-  await db.insert(schema.participants).values(
-    input.personaIds.map((personaId, seatIndex) => ({
-      sessionId: session.id,
-      personaId,
-      seatIndex,
-      silenced: false,
-    })),
-  );
+    await db.insert(schema.participants).values(
+      input.personaIds.map((personaId, seatIndex) => ({
+        sessionId: session.id,
+        personaId,
+        seatIndex,
+        silenced: false,
+      })),
+    );
 
-  return NextResponse.json({ session }, { status: 201 });
+    return NextResponse.json({ session }, { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[POST /api/sessions] failed:", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
