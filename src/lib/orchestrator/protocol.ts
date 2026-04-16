@@ -16,8 +16,7 @@
  * - Hard cap on rounds — cost scales as agents × rounds × context.
  */
 
-import { streamText, generateObject } from "ai";
-import { z } from "zod";
+import { streamText } from "ai";
 import { resolveModel } from "@/lib/providers/registry";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
@@ -337,8 +336,8 @@ async function runAgentTurn(params: {
     speakerName: persona.name,
     content: fullText,
     references: extractReferences(fullText, visibleHistory),
-    tokensIn: usage.promptTokens ?? 0,
-    tokensOut: usage.completionTokens ?? 0,
+    tokensIn: usage.inputTokens ?? 0,
+    tokensOut: usage.outputTokens ?? 0,
     costUsd: 0, // TODO: compute from provider's returned cost metadata
     model: persona.model,
     createdAt: new Date(),
@@ -376,13 +375,17 @@ function buildMessages(params: {
         "Answer the question from your own perspective and expertise. Be specific and substantive.",
     );
   } else if (phase === "critique") {
+    const base = `This is CRITIQUE ROUND ${roundNumber}. You can see everyone's prior statements. `;
     systemParts.push(
-      `This is CRITIQUE ROUND ${roundNumber}. You can see everyone's prior statements. ` +
-        "You MUST do ONE of the following: " +
-        "(a) Refine your position with NEW reasoning or evidence you haven't given before, OR " +
-        "(b) Critique a SPECIFIC participant by name, citing their actual argument, OR " +
-        "(c) Explicitly concede a point someone else made and explain why you changed your mind. " +
-        "Do NOT simply agree or restate. Do NOT be sycophantic. Bring something the group doesn't have yet.",
+      requireNovelty
+        ? base +
+            "You MUST do ONE of the following: " +
+            "(a) Refine your position with NEW reasoning or evidence you haven't given before, OR " +
+            "(b) Critique a SPECIFIC participant by name, citing their actual argument, OR " +
+            "(c) Explicitly concede a point someone else made and explain why you changed your mind. " +
+            "Do NOT simply agree or restate. Do NOT be sycophantic. Bring something the group doesn't have yet."
+        : base +
+            "Respond to what others have said and refine your position as you see fit.",
     );
   } else if (phase === "adaptive_round") {
     systemParts.push(

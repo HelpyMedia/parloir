@@ -9,13 +9,13 @@
  * MCP servers become available as tools. For MVP, ship web_search and rag.
  */
 
-import { tool } from "ai";
+import { tool, type Tool } from "ai";
 import { z } from "zod";
 
 // Placeholder web search — swap for Brave/Exa/Tavily integration.
 const webSearch = tool({
   description: "Search the web for current information. Returns top 5 results with snippets.",
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().min(1).max(400),
   }),
   async execute({ query }) {
@@ -26,7 +26,7 @@ const webSearch = tool({
 
 const ragLookup = tool({
   description: "Search the session's attached documents for relevant passages.",
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().min(1).max(400),
     topK: z.number().int().min(1).max(20).default(5),
   }),
@@ -36,15 +36,15 @@ const ragLookup = tool({
   },
 });
 
-const TOOLS = {
+const TOOLS: Record<string, Tool> = {
   web_search: webSearch,
   rag: ragLookup,
-} as const;
+};
 
 export async function buildToolset(toolIds: string[], _sessionId: string) {
-  const out: Record<string, ReturnType<typeof tool>> = {};
+  const out: Record<string, Tool> = {};
   for (const id of toolIds) {
-    if (id in TOOLS) out[id] = TOOLS[id as keyof typeof TOOLS];
+    if (id in TOOLS) out[id] = TOOLS[id];
     // TODO: resolve MCP-provided tool IDs here, scoped to sessionId
   }
   return out;

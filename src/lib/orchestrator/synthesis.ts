@@ -10,10 +10,10 @@
  * and this is what the user actually keeps.
  */
 
-import { generateObject, streamText } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import { resolveModel } from "@/lib/providers/registry";
-import type { Session, Turn, SynthesisArtifact, StreamEvent } from "./types";
+import type { Session, Turn, SynthesisArtifact } from "./types";
 import type { StreamSink } from "./protocol";
 
 const SynthesisSchema = z.object({
