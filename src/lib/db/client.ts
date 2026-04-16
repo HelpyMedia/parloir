@@ -10,7 +10,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import * as schema from "./schema";
-import type { Turn, Session } from "@/lib/orchestrator/types";
+import type { Turn, Session, SynthesisArtifact } from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
 
 const connectionString = process.env.DATABASE_URL;
@@ -102,5 +102,18 @@ export const storage: Storage = {
           inArray(schema.participants.personaId, personaIds),
         ),
       );
+  },
+
+  async appendArtifact(artifact: SynthesisArtifact) {
+    // transcriptMarkdown is big and has a dedicated column; the rest of the
+    // structured fields go into content jsonb so future schema changes (adding
+    // fields to SynthesisArtifact) don't require a migration.
+    const { transcriptMarkdown, sessionId, ...content } = artifact;
+    await db.insert(schema.artifacts).values({
+      sessionId,
+      type: "synthesis",
+      content,
+      transcriptMarkdown,
+    });
   },
 };

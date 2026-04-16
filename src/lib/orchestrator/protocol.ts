@@ -16,7 +16,7 @@
  * - Hard cap on rounds — cost scales as agents × rounds × context.
  */
 
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { resolveModel } from "@/lib/providers/registry";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
@@ -29,6 +29,7 @@ import type {
   Phase,
   StreamEvent,
   ConsensusReport,
+  SynthesisArtifact,
 } from "./types";
 
 /** Anything that can emit stream events back to the UI. */
@@ -46,6 +47,7 @@ export interface Storage {
     personaIds: string[],
     silenced: boolean,
   ): Promise<void>;
+  appendArtifact(artifact: SynthesisArtifact): Promise<void>;
 }
 
 // ─── Phase 1: Opening statements ────────────────────────────────────────────
@@ -209,6 +211,7 @@ export async function runSynthesis(
     sink,
   });
 
+  await storage.appendArtifact(artifact);
   await sink.emit({ type: "synthesis_complete", artifact });
   return artifact;
 }
@@ -310,11 +313,17 @@ async function runAgentTurn(params: {
     requireNovelty: session.protocol.requireNovelty && phase !== "opening",
   });
 
-  const result = await streamText({
+  // AI SDK 5 defaults to a single step: if the model calls a tool on step 1,
+  // the stream ends with only a tool_use part and zero text. stepCountIs(5)
+  // lets the loop continue past the tool result so the model can produce its
+  // actual answer. 5 is enough headroom for a couple of research hops without
+  // letting a runaway agent thrash.
+  const result = streamText({
     model,
     messages,
     temperature: persona.temperature,
     tools,
+    stopWhen: stepCountIs(5),
     // TODO: prompt caching — set cache control on system messages to reduce costs.
   });
 
