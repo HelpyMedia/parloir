@@ -12,7 +12,6 @@
  */
 
 import { NextRequest } from "next/server";
-import postgres from "postgres";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { and, eq, gt, asc } from "drizzle-orm";
