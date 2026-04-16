@@ -89,9 +89,13 @@ See [ROADMAP.md](./ROADMAP.md) for the phased build plan. In summary:
 - **Phase 4** — Human-in-the-loop controls
 - **Phase 5** — Collaboration, teams, hosted SaaS
 
-## Hosted version
+## Self-hosting and hosted version
 
-A hosted version of Parloir is planned at [parloir.dev](https://parloir.dev). Self-hosting will always be fully supported and will always have feature parity with the core deliberation engine.
+Parloir is fully open source and self-hostable. The entire deliberation engine — the protocol, the orchestrator, all personas, all providers, all features — lives in this repository under Apache 2.0. You can run it for yourself, for your team, or commercially inside your own organization, with no attribution or payment required beyond the license terms.
+
+A managed hosted version is also planned at [parloir.dev](https://parloir.dev) for teams who'd rather not run Postgres, Inngest workers, and provider accounts themselves. The hosted version is a deployed instance of this same codebase — it doesn't hold back features. What you pay for is managed infrastructure, uptime, support, and eventual team-collaboration features designed for organizations running many sessions at scale.
+
+If you self-host and build something you find useful, we'd love to hear about it.
 
 ## Contributing
 
@@ -108,6 +112,6 @@ The debate protocol draws on:
 
 ## License
 
-Apache 2.0 — see [LICENSE](./LICENSE).
+Apache 2.0 — see [LICENSE](./LICENSE). Copyright 2026 Helpy Media Inc.
 
-Built in Montréal 🍁
+Built in Montréal 🍁 by [Helpy Media](https://helpymedia.com).
