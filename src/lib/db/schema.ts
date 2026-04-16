@@ -132,6 +132,8 @@ export const sessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    pauseRequestedAt: timestamp("pause_requested_at", { withTimezone: true }),
+    pausedAtPhase: phaseEnum("paused_at_phase"),
   },
   (t) => ({
     createdByIdx: index("sessions_created_by_idx").on(t.createdBy),
@@ -253,6 +255,37 @@ export const sessionEvents = pgTable(
   },
   (t) => ({
     sessionSeqIdx: uniqueIndex("session_events_seq_idx").on(t.sessionId, t.seq),
+  }),
+);
+
+// ─── Pending human injections (queued during pause) ─────────────────────────
+// Injections are inserted by /api/sessions/[id]/inject. The orchestrator
+// drains them at every phase boundary, appending each as a human Turn. The
+// `deliveredAt` column is how we mark a row as consumed — we do not delete,
+// so we keep an audit trail of every interjection attempt.
+export const pendingInjections = pgTable(
+  "pending_injections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdByName: text("created_by_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deliveredTurnId: uuid("delivered_turn_id").references(() => turns.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => ({
+    sessionPendingIdx: index("pending_injections_session_idx").on(
+      t.sessionId,
+      t.deliveredAt,
+    ),
   }),
 );
 
