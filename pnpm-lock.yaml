@@ -36,8 +36,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.1
       drizzle-orm:
-        specifier: ^0.35.0
-        version: 0.35.3(@libsql/client-wasm@0.17.2)(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.5)
+        specifier: ^0.36.0
+        version: 0.36.4(@libsql/client-wasm@0.17.2)(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.5)
       inngest:
         specifier: ^3.25.0
         version: 3.52.7(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(express@5.2.1)(hono@4.12.14)(next@15.5.15(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(typescript@5.9.3)(zod@3.25.76)
@@ -1877,15 +1877,15 @@ packages:
     resolution: {integrity: sha512-JimOV+ystXTWMgZkLHYHf2w3oS28hxiH1FR0dkmJLc7GHzdGJoJAQtQS5DRppnabsRZwE2U1F6CuezVBgmsBBQ==}
     hasBin: true
 
-  drizzle-orm@0.35.3:
-    resolution: {integrity: sha512-Uv6N+b36x4BaZlxc96e+ag7RnMapBLGhc4SSi2F7RDwqYJipWjaU/P68RUp1FbW9r+mxoDp8nMz2Eece8PJxfA==}
+  drizzle-orm@0.36.4:
+    resolution: {integrity: sha512-1OZY3PXD7BR00Gl61UUOFihslDldfH4NFRH2MbP54Yxi0G/PKn4HfO65JYZ7c16DeP3SpM3Aw+VXVG9j6CRSXA==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=3'
-      '@electric-sql/pglite': '>=0.1.1'
+      '@electric-sql/pglite': '>=0.2.0'
       '@libsql/client': '>=0.10.0'
       '@libsql/client-wasm': '>=0.10.0'
-      '@neondatabase/serverless': '>=0.1'
+      '@neondatabase/serverless': '>=0.10.0'
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1'
@@ -1899,7 +1899,7 @@ packages:
       '@xata.io/client': '*'
       better-sqlite3: '>=7'
       bun-types: '*'
-      expo-sqlite: '>=13.2.0'
+      expo-sqlite: '>=14.0.0'
       knex: '*'
       kysely: '*'
       mysql2: '>=2'
@@ -1917,6 +1917,8 @@ packages:
       '@electric-sql/pglite':
         optional: true
       '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
         optional: true
@@ -3837,10 +3839,12 @@ snapshots:
     dependencies:
       '@libsql/core': 0.17.2
       js-base64: 3.7.8
+    optional: true
 
   '@libsql/core@0.17.2':
     dependencies:
       js-base64: 3.7.8
+    optional: true
 
   '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
     dependencies:
@@ -5258,10 +5262,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.35.3(@libsql/client-wasm@0.17.2)(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.5):
-    dependencies:
-      '@libsql/client-wasm': 0.17.2
+  drizzle-orm@0.36.4(@libsql/client-wasm@0.17.2)(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.5):
     optionalDependencies:
+      '@libsql/client-wasm': 0.17.2
       '@opentelemetry/api': 1.9.1
       '@types/pg': 8.15.6
       '@types/react': 19.2.14
@@ -6110,7 +6113,8 @@ snapshots:
 
   jose@6.2.2: {}
 
-  js-base64@3.7.8: {}
+  js-base64@3.7.8:
+    optional: true
 
   js-tokens@4.0.0: {}
 

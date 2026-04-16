@@ -30,7 +30,7 @@
 
     "inngest": "^3.25.0",
 
-    "drizzle-orm": "^0.35.0",
+    "drizzle-orm": "^0.36.0",
     "postgres": "^3.4.0",
     "pgvector": "^0.2.0",
 
