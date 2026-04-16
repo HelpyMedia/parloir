@@ -21,7 +21,7 @@ pnpm db:migrate      # apply migrations
 pnpm db:studio       # open Drizzle Studio
 ```
 
-Local setup requires Postgres with pgvector. After `pnpm db:migrate`, run `psql $DATABASE_URL -f db/migrations/0000_setup.sql` to install the extension and seed data. Minimum env: `OPENROUTER_API_KEY`, `DATABASE_URL`. No test runner is wired up yet — `pnpm lint` and `pnpm typecheck` are the gates.
+Local setup requires Postgres with pgvector. Order matters on a fresh DB: run `psql $DATABASE_URL -f db/migrations/0000_setup.sql` **first** to install the `vector` extension, then `pnpm db:migrate` to apply the Drizzle-generated migration (the `embeddings` table uses the `vector` type, so the extension must exist beforehand). Minimum env: `OPENROUTER_API_KEY`, `DATABASE_URL`. No test runner is wired up yet — `pnpm lint` and `pnpm typecheck` are the gates.
 
 Two terminals are needed during dev: one for `pnpm inngest:dev`, one for `pnpm dev`. A debate will not run without the Inngest worker.
 

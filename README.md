@@ -43,10 +43,11 @@ The protocol is designed around key findings from MAD research: diversity matter
 ```bash
 pnpm install
 cp .env.example .env.local
-# Minimum: OPENROUTER_API_KEY and DATABASE_URL
-psql $DATABASE_URL -f db/migrations/0000_setup.sql
-pnpm db:generate
-pnpm db:migrate
+# Minimum: OPENROUTER_API_KEY, POSTGRES_PASSWORD, DATABASE_URL
+
+pnpm db:up                                              # start Postgres via docker compose
+psql $DATABASE_URL -f db/migrations/0000_setup.sql      # install pgvector (required before migrate)
+pnpm db:migrate                                         # apply schema
 
 # Two terminals:
 pnpm inngest:dev    # local workflow runner
