@@ -31,6 +31,7 @@ import type {
   ConsensusReport,
   SynthesisArtifact,
 } from "./types";
+import type { ControlPlane } from "./control";
 
 /** Anything that can emit stream events back to the UI. */
 export interface StreamSink {
@@ -222,11 +223,15 @@ export async function runDebate(
   participants: Participant[],
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ) {
   try {
-    // Phase 1: parallel blind opening
+    // Phase 1: parallel blind opening. We DO NOT drain injections before
+    // opening — agents must start blind. We drain after, before critique.
     await storage.updateSession(session.id, { status: "opening", currentRound: 0 });
     await runOpeningPhase(session, participants, storage, sink);
+
+    await drainInjectionsAndWait(session, "opening", storage, sink, controlPlane);
 
     // Phase 2..N: critique rounds with consensus checks
     let consensusReached = false;
@@ -236,7 +241,11 @@ export async function runDebate(
       round++
     ) {
       await storage.updateSession(session.id, { status: "critique", currentRound: round });
+      // Refresh in-memory currentRound so drain places human turns in this round.
+      session.currentRound = round;
       await runCritiqueRound(session, participants, round, storage, sink);
+
+      await drainInjectionsAndWait(session, "critique", storage, sink, controlPlane);
 
       const report = await runConsensusCheck(session, participants, storage, sink);
 
@@ -247,17 +256,25 @@ export async function runDebate(
         session.protocol.enableAdaptiveRound &&
         round === session.protocol.maxCritiqueRounds
       ) {
-        // Last round and still no consensus — try the adaptive reshuffle.
         await storage.updateSession(session.id, {
           status: "adaptive_round",
           currentRound: round + 1,
         });
+        session.currentRound = round + 1;
+        await drainInjectionsAndWait(
+          session,
+          "adaptive_round",
+          storage,
+          sink,
+          controlPlane,
+        );
         await runAdaptiveRound(session, participants, report, storage, sink);
         break;
       }
     }
 
     // Phase 5: synthesis
+    await drainInjectionsAndWait(session, "synthesis", storage, sink, controlPlane);
     await storage.updateSession(session.id, { status: "synthesis" });
     await runSynthesis(session, storage, sink);
 
@@ -443,4 +460,85 @@ function extractReferences(text: string, history: Turn[]): string[] {
     }
   }
   return [...refs];
+}
+
+// ─── Phase-boundary control point ───────────────────────────────────────────
+/**
+ * Called between every phase. Appends any queued human injections as human
+ * Turns visible to subsequent speakers, then blocks if pause was requested.
+ * After a wait, re-drains — a user can submit a note *during* the pause and
+ * we want it visible in the very next phase.
+ */
+async function drainInjectionsAndWait(
+  session: Session,
+  atPhase: Phase,
+  storage: Storage,
+  sink: StreamSink,
+  controlPlane: ControlPlane,
+): Promise<void> {
+  await drainOnce(session, atPhase, storage, sink, controlPlane);
+
+  if (await controlPlane.isPauseRequested(session.id)) {
+    await controlPlane.markPausedAtPhase(session.id, atPhase);
+    await storage.updateSession(session.id, { status: "paused" });
+    await sink.emit({
+      type: "human_injection_request",
+      prompt:
+        "Deliberation paused. Add a note to steer the next phase, or resume without interjecting.",
+    });
+
+    const paused = await controlPlane.waitIfPauseRequested(session.id);
+    if (paused) {
+      // Restore the phase we were in so the transcript / UI shows us back on
+      // track before the next phase_enter fires.
+      await storage.updateSession(session.id, { status: atPhase });
+      await drainOnce(session, atPhase, storage, sink, controlPlane);
+    }
+  }
+}
+
+async function drainOnce(
+  session: Session,
+  atPhase: Phase,
+  storage: Storage,
+  sink: StreamSink,
+  controlPlane: ControlPlane,
+): Promise<void> {
+  const injections = await controlPlane.drainInjections(session.id);
+  if (injections.length === 0) return;
+
+  const transcript = await storage.getTranscript(session.id);
+  let turnIndex = transcript.filter(
+    (t) => t.phase === atPhase && t.roundNumber === session.currentRound,
+  ).length;
+
+  for (const injection of injections) {
+    await sink.emit({
+      type: "turn_start",
+      speakerId: injection.createdBy,
+      speakerName: injection.createdByName,
+      phase: atPhase,
+    });
+
+    const turn: Turn = {
+      id: crypto.randomUUID(),
+      sessionId: session.id,
+      phase: atPhase,
+      roundNumber: session.currentRound,
+      turnIndex: turnIndex++,
+      speakerRole: "human",
+      speakerId: injection.createdBy,
+      speakerName: injection.createdByName,
+      content: injection.content,
+      references: [],
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: "",
+      createdAt: new Date(),
+    };
+
+    await storage.appendTurn(turn);
+    await sink.emit({ type: "turn_complete", turn });
+  }
 }

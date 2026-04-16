@@ -22,6 +22,7 @@
 
 import { inngest } from "./client";
 import { runDebate } from "@/lib/orchestrator/protocol";
+import { NoopControlPlane } from "@/lib/orchestrator/control";
 import { storage, db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -81,11 +82,18 @@ export const startDebate = inngest.createFunction(
     // we would lift runOpeningPhase / runCritiqueRound / etc. into separate
     // step.run() calls. That's a worthwhile upgrade for Phase 4 of the roadmap.
     await step.run("run-debate", async () => {
-      await runDebate(session, participants, storage, {
-        async emit(evt: StreamEvent) {
-          await appendStreamEvent(sessionId, evt);
+      await runDebate(
+        session,
+        participants,
+        storage,
+        {
+          async emit(evt: StreamEvent) {
+            await appendStreamEvent(sessionId, evt);
+          },
         },
-      });
+        // Temporary: replaced by createInngestControlPlane(step, sessionId) in Task 5.
+        new NoopControlPlane(),
+      );
     });
 
     return { sessionId, completedAt: new Date().toISOString() };
