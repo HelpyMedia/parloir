@@ -1,0 +1,91 @@
+/**
+ * The durable debate workflow.
+ *
+ * Why Inngest: a 3-agent × 3-round debate easily takes 3-5 minutes. Vercel's
+ * serverless limit is 300s (Pro) / 800s (Enterprise). Inngest runs each phase
+ * as a separate durable "step" — if the process dies, Inngest resumes from
+ * the last completed step without re-running it.
+ *
+ * Streaming: Inngest steps can't natively stream to the client. We solve this
+ * by emitting each stream event into a Postgres-backed event queue (table:
+ * `session_events`). The SSE endpoint (app/api/sessions/[id]/stream/route.ts)
+ * polls/subscribes to that queue. This decouples the long-running workflow
+ * from any one HTTP connection — the user can close their tab and the debate
+ * continues.
+ *
+ * Event flow:
+ *   Next.js API /sessions/[id]/start  ──triggers──>  inngest event "debate.requested"
+ *   Inngest worker picks it up, runs runDebate(), pushing StreamEvents into the
+ *   events table as it goes.
+ *   SSE endpoint reads the events table and pipes to the browser.
+ */
+
+import { inngest } from "./client";
+import { runDebate } from "@/lib/orchestrator/protocol";
+import { storage, db } from "@/lib/db/client";
+import * as schema from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import type { Session, Participant, StreamEvent } from "@/lib/orchestrator/types";
+
+export const startDebate = inngest.createFunction(
+  {
+    id: "start-debate",
+    name: "Start debate",
+    // Cap concurrency per session so a "resume" event doesn't double-run.
+    concurrency: { key: "event.data.sessionId", limit: 1 },
+    // Retry once on failure; the workflow is idempotent at the phase level.
+    retries: 1,
+  },
+  { event: "debate.requested" },
+  async ({ event, step }) => {
+    const { sessionId } = event.data as { sessionId: string };
+
+    // Step 1: load session + participants (deterministic, cheap)
+    const { session, participants } = await step.run("load-session", async () => {
+      const sessionRow = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
+      });
+      if (!sessionRow) throw new Error(`Session ${sessionId} not found`);
+
+      const participantRows = await db.query.participants.findMany({
+        where: eq(schema.participants.sessionId, sessionId),
+      });
+
+      return {
+        session: sessionRow as unknown as Session,
+        participants: participantRows as unknown as Participant[],
+      };
+    });
+
+    // Step 2: run the debate. We do NOT wrap each phase in step.run() here
+    // because StreamEvents are side-effects that must be emitted in order.
+    // Instead, the orchestrator writes events to the DB transactionally as
+    // they're produced — replay safety comes from the phase-level status
+    // updates on the session row.
+    //
+    // If we wanted finer-grained resumability (survive mid-phase crashes),
+    // we would lift runOpeningPhase / runCritiqueRound / etc. into separate
+    // step.run() calls. That's a worthwhile upgrade for Phase 4 of the roadmap.
+    await step.run("run-debate", async () => {
+      await runDebate(session, participants, storage, {
+        async emit(evt: StreamEvent) {
+          await appendStreamEvent(sessionId, evt);
+        },
+      });
+    });
+
+    return { sessionId, completedAt: new Date().toISOString() };
+  },
+);
+
+// ─── Stream event queue (DB-backed pub/sub) ─────────────────────────────────
+async function appendStreamEvent(sessionId: string, event: StreamEvent) {
+  await db.insert(schema.sessionEvents).values({
+    sessionId,
+    payload: event,
+  });
+  // Optional: emit a Postgres NOTIFY so the SSE endpoint wakes up instantly.
+  // LISTEN/NOTIFY is done via `sql` — see sessionEvents DDL for the trigger.
+}
+
+export const handlers = [startDebate];
