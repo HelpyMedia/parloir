@@ -35,8 +35,14 @@ const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
   : null;
 
-const openrouter = process.env.OPENROUTER_API_KEY
+// The OpenRouter SDK's return type predates the LanguageModelV2 `supportedUrls`
+// addition, so it nominally fails the `LanguageModel` structural check even
+// though it works at runtime. Wrap the factory to cast once, not per-call.
+const openrouterClient = process.env.OPENROUTER_API_KEY
   ? createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
+  : null;
+const openrouter: ((modelId: string) => LanguageModel) | null = openrouterClient
+  ? (modelId: string) => openrouterClient(modelId) as unknown as LanguageModel
   : null;
 
 const ollama = createOllama({
