@@ -89,17 +89,21 @@ export const startDebate = inngest.createFunction(
 );
 
 // ─── Stream event queue (DB-backed pub/sub) ─────────────────────────────────
-// seq is computed in-SQL as MAX(seq)+1 per session. Safe because the Inngest
-// function is concurrency-keyed to sessionId with limit: 1 — only one writer
-// per session at a time.
+// seq is per-session monotonic. Inngest concurrency:1 keeps workflow runs
+// serial, but within one run the opening phase fans out agents in parallel,
+// so MAX(seq)+1 alone is racy. A per-session advisory lock inside the
+// transaction serializes concurrent writers for the same session only.
 async function appendStreamEvent(sessionId: string, event: StreamEvent) {
-  await db.insert(schema.sessionEvents).values({
-    sessionId,
-    seq: sql<number>`COALESCE((SELECT MAX(${schema.sessionEvents.seq}) FROM ${schema.sessionEvents} WHERE ${schema.sessionEvents.sessionId} = ${sessionId}), 0) + 1`,
-    payload: event,
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${sessionId}))`,
+    );
+    await tx.insert(schema.sessionEvents).values({
+      sessionId,
+      seq: sql<number>`COALESCE((SELECT MAX(${schema.sessionEvents.seq}) FROM ${schema.sessionEvents} WHERE ${schema.sessionEvents.sessionId} = ${sessionId}), 0) + 1`,
+      payload: event,
+    });
   });
-  // Optional: emit a Postgres NOTIFY so the SSE endpoint wakes up instantly.
-  // LISTEN/NOTIFY is done via `sql` — see sessionEvents DDL for the trigger.
 }
 
 export const handlers = [startDebate];
