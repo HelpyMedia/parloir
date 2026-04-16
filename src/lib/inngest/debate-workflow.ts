@@ -24,7 +24,7 @@ import { inngest } from "./client";
 import { runDebate } from "@/lib/orchestrator/protocol";
 import { storage, db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Session, Participant, StreamEvent } from "@/lib/orchestrator/types";
 
 export const startDebate = inngest.createFunction(
@@ -41,7 +41,7 @@ export const startDebate = inngest.createFunction(
     const { sessionId } = event.data as { sessionId: string };
 
     // Step 1: load session + participants (deterministic, cheap)
-    const { session, participants } = await step.run("load-session", async () => {
+    const loaded = await step.run("load-session", async () => {
       const sessionRow = await db.query.sessions.findFirst({
         where: eq(schema.sessions.id, sessionId),
       });
@@ -51,11 +51,21 @@ export const startDebate = inngest.createFunction(
         where: eq(schema.participants.sessionId, sessionId),
       });
 
-      return {
-        session: sessionRow as unknown as Session,
-        participants: participantRows as unknown as Participant[],
-      };
+      return { sessionRow, participantRows };
     });
+
+    // Inngest JSON-serializes step.run return values, so Date fields arrive
+    // as strings. Re-hydrate before handing to the orchestrator, which expects
+    // Date instances per the Session type.
+    const session: Session = {
+      ...loaded.sessionRow,
+      createdAt: new Date(loaded.sessionRow.createdAt),
+      updatedAt: new Date(loaded.sessionRow.updatedAt),
+      completedAt: loaded.sessionRow.completedAt
+        ? new Date(loaded.sessionRow.completedAt)
+        : null,
+    } as unknown as Session;
+    const participants = loaded.participantRows as unknown as Participant[];
 
     // Step 2: run the debate. We do NOT wrap each phase in step.run() here
     // because StreamEvents are side-effects that must be emitted in order.
@@ -79,9 +89,13 @@ export const startDebate = inngest.createFunction(
 );
 
 // ─── Stream event queue (DB-backed pub/sub) ─────────────────────────────────
+// seq is computed in-SQL as MAX(seq)+1 per session. Safe because the Inngest
+// function is concurrency-keyed to sessionId with limit: 1 — only one writer
+// per session at a time.
 async function appendStreamEvent(sessionId: string, event: StreamEvent) {
   await db.insert(schema.sessionEvents).values({
     sessionId,
+    seq: sql<number>`COALESCE((SELECT MAX(${schema.sessionEvents.seq}) FROM ${schema.sessionEvents} WHERE ${schema.sessionEvents.sessionId} = ${sessionId}), 0) + 1`,
     payload: event,
   });
   // Optional: emit a Postgres NOTIFY so the SSE endpoint wakes up instantly.
