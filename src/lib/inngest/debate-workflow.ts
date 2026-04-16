@@ -22,7 +22,7 @@
 
 import { inngest } from "./client";
 import { runDebate } from "@/lib/orchestrator/protocol";
-import { NoopControlPlane } from "@/lib/orchestrator/control";
+import { createInngestControlPlane } from "./control-plane";
 import { storage, db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -72,29 +72,24 @@ export const startDebate = inngest.createFunction(
     } as unknown as Session;
     const participants = loaded.participantRows as unknown as Participant[];
 
-    // Step 2: run the debate. We do NOT wrap each phase in step.run() here
-    // because StreamEvents are side-effects that must be emitted in order.
-    // Instead, the orchestrator writes events to the DB transactionally as
-    // they're produced — replay safety comes from the phase-level status
-    // updates on the session row.
-    //
-    // If we wanted finer-grained resumability (survive mid-phase crashes),
-    // we would lift runOpeningPhase / runCritiqueRound / etc. into separate
-    // step.run() calls. That's a worthwhile upgrade for Phase 4 of the roadmap.
-    await step.run("run-debate", async () => {
-      await runDebate(
-        session,
-        participants,
-        storage,
-        {
-          async emit(evt: StreamEvent) {
-            await appendStreamEvent(sessionId, evt);
-          },
+    // Run the debate directly (no step.run wrapper). step.waitForEvent inside
+    // the control plane must be called at the top level of the function body;
+    // nested step.* calls are not legal in Inngest. Trade-off: a catastrophic
+    // crash re-runs the whole debate from the start — acceptable because we
+    // already accept that at the phase level today, and durable pause is worth
+    // the downgrade. Finer-grained resumability is a future roadmap item.
+    const controlPlane = createInngestControlPlane(step, sessionId);
+    await runDebate(
+      session,
+      participants,
+      storage,
+      {
+        async emit(evt: StreamEvent) {
+          await appendStreamEvent(sessionId, evt);
         },
-        // Temporary: replaced by createInngestControlPlane(step, sessionId) in Task 5.
-        new NoopControlPlane(),
-      );
-    });
+      },
+      controlPlane,
+    );
 
     return { sessionId, completedAt: new Date().toISOString() };
   },

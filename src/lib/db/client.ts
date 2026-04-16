@@ -8,9 +8,9 @@
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as schema from "./schema";
-import type { Turn, Session, SynthesisArtifact } from "@/lib/orchestrator/types";
+import type { Turn, Session, SynthesisArtifact, HumanInjection, Phase } from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
 
 const connectionString = process.env.DATABASE_URL;
@@ -117,3 +117,75 @@ export const storage: Storage = {
     });
   },
 };
+
+// ─── Pause / inject helpers (not on the orchestrator Storage interface — ────
+// these are control-plane concerns kept adjacent for easy review).
+export async function drainPendingInjections(
+  sessionId: string,
+): Promise<HumanInjection[]> {
+  return await db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.pendingInjections)
+      .where(
+        and(
+          eq(schema.pendingInjections.sessionId, sessionId),
+          isNull(schema.pendingInjections.deliveredAt),
+        ),
+      )
+      .orderBy(asc(schema.pendingInjections.createdAt))
+      .for("update");
+
+    if (rows.length === 0) return [];
+
+    await tx
+      .update(schema.pendingInjections)
+      .set({ deliveredAt: new Date() })
+      .where(
+        inArray(
+          schema.pendingInjections.id,
+          rows.map((r) => r.id),
+        ),
+      );
+
+    return rows.map((r) => ({
+      id: r.id,
+      sessionId: r.sessionId,
+      content: r.content,
+      createdBy: r.createdBy,
+      createdByName: r.createdByName,
+      createdAt: r.createdAt,
+    }));
+  });
+}
+
+export async function isSessionPauseRequested(
+  sessionId: string,
+): Promise<boolean> {
+  const row = await db.query.sessions.findFirst({
+    where: eq(schema.sessions.id, sessionId),
+    columns: { pauseRequestedAt: true },
+  });
+  return row?.pauseRequestedAt != null;
+}
+
+export async function markSessionPausedAtPhase(
+  sessionId: string,
+  phase: Phase,
+): Promise<void> {
+  await db
+    .update(schema.sessions)
+    .set({ pausedAtPhase: phase, updatedAt: new Date() })
+    .where(eq(schema.sessions.id, sessionId));
+}
+
+export async function clearSessionPause(sessionId: string): Promise<void> {
+  await db
+    .update(schema.sessions)
+    .set({
+      pauseRequestedAt: null,
+      pausedAtPhase: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+}
