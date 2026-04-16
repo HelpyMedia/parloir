@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+/*
+ * Parloir "Playable Council" design tokens.
+ * See design-system/MASTER.md for rationale and usage.
+ */
+@theme {
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --color-bg-chamber: #0b0d10;
+  --color-bg-table: #14100c;
+  --color-surface-card: #161a1f;
+  --color-surface-raised: #1d232b;
+
+  --color-spot-warm: #e8b464;
+  --color-spot-halo: rgba(232, 180, 100, 0.18);
+
+  --color-persona-strategist: #7da3c8;
+  --color-persona-skeptic: #c8847d;
+  --color-persona-researcher: #8bb18b;
+  --color-persona-implementer: #c8a87d;
+  --color-persona-moderator: #a88bc8;
+
+  --color-text-primary: #ede8df;
+  --color-text-muted: #9aa0a6;
+  --color-text-dim: #6c727a;
+
+  --color-consensus: #8bb18b;
+  --color-dissent: #c8847d;
+  --color-evidence: #e8b464;
+  --color-danger: #e07b6a;
+
+  --color-border-subtle: rgba(237, 232, 223, 0.08);
+  --color-border-strong: rgba(237, 232, 223, 0.16);
+}
+
+html,
+body {
+  background-color: var(--color-bg-chamber);
+  color: var(--color-text-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--color-spot-halo);
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
