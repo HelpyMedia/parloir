@@ -16,8 +16,13 @@ import { z } from "zod";
 import { resolveModel } from "@/lib/providers/registry";
 import type { Turn, Participant, ConsensusReport } from "./types";
 
+// Anthropic's structured-output validator rejects JSON Schema's minimum/maximum
+// on number fields, so we can't use z.number().min(0).max(1) here. Describe the
+// range in the field docs instead and clamp on the way out.
 const ConsensusSchema = z.object({
-  consensusLevel: z.number().min(0).max(1),
+  consensusLevel: z
+    .number()
+    .describe("Float between 0 and 1. 1 = full consensus, 0 = complete dissent."),
   agreeingParticipants: z.array(z.string()),
   dissentingParticipants: z.array(z.string()),
   majorityPosition: z.string(),
@@ -28,13 +33,15 @@ const ConsensusSchema = z.object({
   participantRanking: z.array(
     z.object({
       personaId: z.string(),
-      score: z.number().min(0).max(1),
+      score: z.number().describe("Float between 0 and 1."),
     }),
   ),
   silencedForNextRound: z.array(z.string()),
   recommendation: z.enum(["another_round", "proceed_to_synthesis", "escalate_to_human"]),
   reasoning: z.string(),
 });
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 export async function evaluateConsensus(params: {
   question: string;
@@ -84,5 +91,12 @@ export async function evaluateConsensus(params: {
     ],
   });
 
-  return result.object;
+  return {
+    ...result.object,
+    consensusLevel: clamp01(result.object.consensusLevel),
+    participantRanking: result.object.participantRanking.map((r) => ({
+      ...r,
+      score: clamp01(r.score),
+    })),
+  };
 }
