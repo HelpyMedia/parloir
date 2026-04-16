@@ -1,5 +1,5 @@
 /**
- * Core types for the roundtable orchestrator.
+ * Core types for the parloir orchestrator.
  *
  * The debate protocol is a finite state machine over phases. Each phase
  * produces turns (either agent speech or human interjection). Turns are

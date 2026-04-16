@@ -10,6 +10,6 @@
 import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
-  id: "roundtable",
-  name: "Roundtable",
+  id: "parloir",
+  name: "Parloir",
 });

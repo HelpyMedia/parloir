@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-Roundtable is deliberately small and readable. Before adding a dependency, ask: can this be done in ~100 lines of our own code? The core debate protocol is ~400 lines on purpose — if you can't hold it in your head, you can't confidently change it.
+Parloir is deliberately small and readable. Before adding a dependency, ask: can this be done in ~100 lines of our own code? The core debate protocol is ~400 lines on purpose — if you can't hold it in your head, you can't confidently change it.
 
 We favor:
 - **Plain TypeScript over frameworks.** Custom state machine over LangGraph/Mastra.
