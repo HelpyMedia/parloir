@@ -145,6 +145,8 @@ export async function GET(
     createdAt: sessionRow.createdAt,
     updatedAt: sessionRow.updatedAt,
     completedAt: sessionRow.completedAt,
+    pauseRequestedAt: sessionRow.pauseRequestedAt ?? null,
+    pausedAtPhase: sessionRow.pausedAtPhase ?? null,
   };
 
   const bundle: HydrationBundle = {

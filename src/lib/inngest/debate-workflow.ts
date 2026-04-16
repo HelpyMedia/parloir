@@ -64,6 +64,10 @@ export const startDebate = inngest.createFunction(
       completedAt: loaded.sessionRow.completedAt
         ? new Date(loaded.sessionRow.completedAt)
         : null,
+      pauseRequestedAt: loaded.sessionRow.pauseRequestedAt
+        ? new Date(loaded.sessionRow.pauseRequestedAt)
+        : null,
+      pausedAtPhase: loaded.sessionRow.pausedAtPhase ?? null,
     } as unknown as Session;
     const participants = loaded.participantRows as unknown as Participant[];
 

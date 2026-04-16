@@ -124,6 +124,8 @@ async function loadBundle(id: string): Promise<HydrationBundle | null> {
     createdAt: sessionRow.createdAt,
     updatedAt: sessionRow.updatedAt,
     completedAt: sessionRow.completedAt,
+    pauseRequestedAt: sessionRow.pauseRequestedAt ?? null,
+    pausedAtPhase: sessionRow.pausedAtPhase ?? null,
   };
 
   return {

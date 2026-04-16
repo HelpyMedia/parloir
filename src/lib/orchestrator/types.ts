@@ -53,6 +53,16 @@ export interface ToolCall {
   durationMs: number;
 }
 
+/** A queued human note waiting to be appended at the next phase boundary. */
+export interface HumanInjection {
+  id: string;
+  sessionId: string;
+  content: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
+}
+
 /** A persona template — reusable across sessions. */
 export interface Persona {
   id: string;
@@ -124,6 +134,10 @@ export interface Session {
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;
+  /** Set by POST /pause. Cleared by POST /resume. */
+  pauseRequestedAt: Date | null;
+  /** The phase the session was in when pause was requested — resume target. */
+  pausedAtPhase: Phase | null;
 }
 
 /** The judge's structured output after a consensus check. */
