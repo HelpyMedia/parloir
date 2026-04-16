@@ -76,3 +76,17 @@ For protocol work, run debates with `ollama/llama3.2` as every persona — penni
 - Persona DB loading is a TODO — templates directory is the source of truth.
 - No per-turn token budget enforcement; a runaway agent can burn tokens.
 - Cost computation in `turn.costUsd` is stubbed to `0`.
+
+## Pause / Inject / Resume
+
+Live as of 2026-04-16. Entry points:
+
+- `POST /api/sessions/[id]/pause` sets `sessions.pause_requested_at`. The orchestrator checks this at every phase boundary (`drainInjectionsAndWait` in `protocol.ts`) and suspends via Inngest's `step.waitForEvent("debate.resumed")`.
+- `POST /api/sessions/[id]/inject` enqueues a `HumanInjection` row (`pending_injections` table). Drained transactionally (`SELECT FOR UPDATE`) at the next phase boundary and appended to the transcript as a `speakerRole: "human"` turn.
+- `POST /api/sessions/[id]/resume` emits the `debate.resumed` Inngest event. The worker clears the pause flag after resuming.
+- UI: `SessionShell` renders `PausedOverlay` when `state.phase === "paused"` or an injection prompt event arrived. `StickyActionBar` toggles pause/resume.
+
+Known minor gaps in this feature:
+- `pending_injections.delivered_turn_id` is reserved but not yet populated (best-effort audit trail only).
+- A very fast double-resume can orphan an Inngest `debate.resumed` event (harmless; the next pause still works).
+- No explicit UI affordance for the brief pause-request-pending window (request → first phase boundary hit).
