@@ -29,6 +29,11 @@ export function createInngestControlPlane(
   step: WorkflowStep,
   sessionId: string,
 ): ControlPlane {
+  // Inngest memoizes step results by ID within a single function invocation.
+  // Each pause must use a distinct ID or a second wait would return instantly
+  // with the first wait's cached result.
+  let pauseCount = 0;
+
   return {
     async drainInjections(sid: string): Promise<HumanInjection[]> {
       if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
@@ -50,7 +55,7 @@ export function createInngestControlPlane(
       if (!(await isSessionPauseRequested(sid))) return false;
 
       // Suspend until POST /resume sends { name: "debate.resumed", data: { sessionId } }.
-      await step.waitForEvent(`await-resume:${sid}`, {
+      await step.waitForEvent(`await-resume:${sid}:${pauseCount++}`, {
         event: "debate.resumed",
         match: "data.sessionId",
         timeout: RESUME_TIMEOUT,
