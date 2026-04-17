@@ -27,6 +27,13 @@ const SYNTH_PREFERENCES: Array<{ provider: string; modelId: string }> = [
   { provider: "openrouter", modelId: "openrouter/anthropic/claude-opus-4.7" },
 ];
 
+const CLASSIFIER_PREFERENCES: Array<{ provider: string; modelId: string }> = [
+  { provider: "anthropic", modelId: "anthropic/claude-haiku-4-5" },
+  { provider: "google", modelId: "google/gemini-2.5-flash" },
+  { provider: "openai", modelId: "openai/gpt-4o-mini" },
+  { provider: "openrouter", modelId: "openrouter/anthropic/claude-haiku-4.5" },
+];
+
 function providerOf(modelId: string): string {
   const first = modelId.split("/")[0];
   return first === "google-gemini" ? "google" : first;
@@ -85,4 +92,21 @@ export function pickSynthesizerModel(
 ): string {
   const chain = pickSynthesizerModelChain(desired, ctx, personaModels);
   return chain[0] ?? desired;
+}
+
+/**
+ * Classifier chain for the panel recommender. Unlike the judge/synth chains,
+ * we do NOT append persona default models. At recommender time nothing has
+ * started, and every template persona currently defaults to an Anthropic
+ * model, so that tail would just add latency for users without Anthropic.
+ * Callers should treat an empty return as "no classifier available" and
+ * short-circuit (e.g. respond 204).
+ */
+export function pickClassifierModelChain(ctx: ProviderContext): string[] {
+  const available = new Set(availableProviders(ctx));
+  const out: string[] = [];
+  for (const p of CLASSIFIER_PREFERENCES) {
+    if (available.has(p.provider)) out.push(p.modelId);
+  }
+  return out;
 }
