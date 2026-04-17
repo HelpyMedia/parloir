@@ -2,9 +2,11 @@
 
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useState } from "react";
+import { useScrollCollapse } from "@/hooks/useScrollCollapse";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
+import { CollapsedStageBar } from "../stage/CollapsedStageBar";
 import { CouncilStage } from "../stage/CouncilStage";
 import { PausedOverlay } from "../paused/PausedOverlay";
 import { PersonaRail } from "../rails/PersonaRail";
@@ -20,6 +22,9 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const insights = deriveInsights(state);
   const [pausePending, setPausePending] = useState(false);
   const [resumePending, setResumePending] = useState(false);
+  const [hoverExpand, setHoverExpand] = useState(false);
+  const scrollCollapsed = useScrollCollapse(140);
+  const collapsed = scrollCollapsed && !hoverExpand;
 
   const sessionId = state.sessionId;
   const isPaused =
@@ -99,29 +104,45 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         </main>
       ) : (
         <>
-          <div className="relative flex min-h-[380px]">
-            <PersonaRail
-              personas={state.personas}
-              personaState={state.personaState}
-            />
-            <div className="relative flex flex-1 items-stretch">
-              <CouncilStage
+          <div
+            className="sticky top-0 z-30 bg-[var(--color-bg-chamber)]"
+            onMouseEnter={() => scrollCollapsed && setHoverExpand(true)}
+            onMouseLeave={() => setHoverExpand(false)}
+          >
+            {collapsed ? (
+              <CollapsedStageBar
                 personas={state.personas}
                 personaState={state.personaState}
                 activeSpeakerId={activeSpeakerId}
-                paused={isPaused}
+                live={state.live}
               />
-              <AnimatePresence>
-                {isPaused && (
-                  <PausedOverlay
-                    prompt={state.humanInjectionPrompt}
-                    onSubmit={submitInjection}
-                    onCancel={requestResume}
+            ) : (
+              <div className="relative flex min-h-[380px]">
+                <PersonaRail
+                  personas={state.personas}
+                  personaState={state.personaState}
+                />
+                <div className="relative flex flex-1 items-stretch">
+                  <CouncilStage
+                    personas={state.personas}
+                    personaState={state.personaState}
+                    activeSpeakerId={activeSpeakerId}
+                    paused={isPaused}
+                    live={state.live}
                   />
-                )}
-              </AnimatePresence>
-            </div>
-            <InsightRail insights={insights} />
+                  <AnimatePresence>
+                    {isPaused && (
+                      <PausedOverlay
+                        prompt={state.humanInjectionPrompt}
+                        onSubmit={submitInjection}
+                        onCancel={requestResume}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
+                <InsightRail insights={insights} />
+              </div>
+            )}
           </div>
           <TranscriptDrawer
             turns={state.turns}
