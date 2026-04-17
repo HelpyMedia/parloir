@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
@@ -29,7 +29,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
     state.phase === "completed" && state.synthesis !== null;
 
   const requestPause = useCallback(async () => {
-    if (pausePending) return;
+    if (pausePending || isPaused) return;
     setPausePending(true);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/pause`, {
@@ -37,11 +37,19 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
       });
       if (!res.ok) {
         console.error("pause failed", await res.text());
+        setPausePending(false);
       }
-    } finally {
+      // Otherwise leave pending=true until the effect below sees isPaused flip,
+      // so the spinner stays up through the "waiting for phase boundary" gap.
+    } catch (e) {
+      console.error("pause failed", e);
       setPausePending(false);
     }
-  }, [pausePending, sessionId]);
+  }, [pausePending, isPaused, sessionId]);
+
+  useEffect(() => {
+    if (isPaused) setPausePending(false);
+  }, [isPaused]);
 
   const requestResume = useCallback(async () => {
     if (resumePending) return;
@@ -137,8 +145,8 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           isSynthesisDone ? "completed" : isPaused ? "paused" : state.phase
         }
         canExport={isSynthesisDone}
+        pausePending={pausePending}
         onPauseToggle={isPaused ? requestResume : requestPause}
-        onInterject={requestPause}
         onAskRound={requestPause /* TODO: replace when ask-round plan ships */}
         onExport={() => {
           if (!state.synthesis) return;
