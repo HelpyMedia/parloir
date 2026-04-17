@@ -103,6 +103,43 @@ export const authVerifications = pgTable("auth_verifications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ─── User credentials (encrypted BYOK API keys) ─────────────────────────────
+// AES-256-GCM encrypted at rest. iv and tag are base64 strings; payload is
+// base64-ciphertext. The server-side encryption key lives in an env var and
+// never touches the DB. One row per (user, provider) — upsert on save.
+export const userCredentials = pgTable(
+  "user_credentials",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // "openrouter" | "anthropic" | "openai" | "google"
+    iv: text("iv").notNull(),
+    tag: text("tag").notNull(),
+    payload: text("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.provider] }),
+  }),
+);
+
+// ─── User provider settings (local inference base URLs) ─────────────────────
+// Stores base URLs for providers that don't use API keys (Ollama, LM Studio).
+// One row per (user, provider) — upsert on save.
+export const userProviderSettings = pgTable(
+  "user_provider_settings",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // "ollama" | "lmstudio"
+    baseUrl: text("base_url").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.provider] }),
+  }),
+);
+
 export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
