@@ -75,8 +75,8 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
-      <div className="flex-none bg-[var(--color-bg-chamber)]">
+    <div className="min-h-dvh bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
+      <div className="sticky top-0 z-40 bg-[var(--color-bg-chamber)]">
         <TopBar
           session={state.session}
           phase={state.phase}
@@ -92,15 +92,8 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
             {state.error}
           </div>
         )}
-      </div>
-
-      {isSynthesisDone && state.synthesis ? (
-        <main className="flex-1 overflow-y-auto">
-          <SynthesisPanel artifact={state.synthesis} />
-        </main>
-      ) : (
-        <>
-          <div className="relative flex h-[380px] flex-none">
+        {!isSynthesisDone && (
+          <div className="relative flex h-[360px] border-b border-[var(--color-border-subtle)]">
             <PersonaRail
               personas={state.personas}
               personaState={state.personaState}
@@ -125,13 +118,20 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
             </div>
             <InsightRail insights={insights} />
           </div>
-          <TranscriptDrawer
-            turns={state.turns}
-            live={state.live}
-            consensusReports={state.consensusReports}
-            personas={state.personas}
-          />
-        </>
+        )}
+      </div>
+
+      {isSynthesisDone && state.synthesis ? (
+        <main>
+          <SynthesisPanel artifact={state.synthesis} />
+        </main>
+      ) : (
+        <TranscriptDrawer
+          turns={state.turns}
+          live={state.live}
+          consensusReports={state.consensusReports}
+          personas={state.personas}
+        />
       )}
 
       <StickyActionBar
