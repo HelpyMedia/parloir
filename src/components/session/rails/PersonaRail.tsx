@@ -14,7 +14,7 @@ export function PersonaRail({ personas, personaState, onSelect }: Props) {
   return (
     <aside
       aria-label="Council participants"
-      className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 py-4"
+      className="flex w-60 shrink-0 flex-col gap-3 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 py-4"
     >
       <div className="font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-dim)]">
         Council

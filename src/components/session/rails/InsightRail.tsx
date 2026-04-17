@@ -13,7 +13,7 @@ export function InsightRail({ insights }: Props) {
   return (
     <aside
       aria-label="Session insights"
-      className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 py-4"
+      className="flex w-72 shrink-0 flex-col gap-3 border-l border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 py-4"
     >
       <div className="font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-dim)]">
         Insights
