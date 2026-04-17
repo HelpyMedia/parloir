@@ -158,11 +158,24 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `parloir-session-${sessionId.slice(0, 8)}.md`;
+          a.download = buildExportFilename(state.session?.title, sessionId);
           a.click();
           URL.revokeObjectURL(url);
         }}
       />
     </div>
   );
+}
+
+function buildExportFilename(title: string | undefined, sessionId: string): string {
+  const shortId = sessionId.slice(0, 8);
+  const slug = (title ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+  return slug ? `parloir-${slug}-${shortId}.md` : `parloir-session-${shortId}.md`;
 }
