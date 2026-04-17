@@ -22,6 +22,7 @@
 
 import { inngest } from "./client";
 import { runDebate } from "@/lib/orchestrator/protocol";
+import { loadProviderContext } from "@/lib/credentials/context";
 import { createInngestControlPlane } from "./control-plane";
 import { storage, db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
@@ -72,6 +73,26 @@ export const startDebate = inngest.createFunction(
     } as unknown as Session;
     const participants = loaded.participantRows as unknown as Participant[];
 
+    // Step 2: load the session owner's provider credentials. This runs as a
+    // separate durable step so that if the workflow resumes after a crash,
+    // credentials are re-fetched from the DB rather than replayed from a
+    // potentially stale Inngest checkpoint.
+    const providerContext = await step.run("load-credentials", async () => {
+      return await loadProviderContext(session.createdBy);
+    });
+
+    // If the user has no cloud keys stored and no local URLs configured,
+    // PARLOIR_DEV_INHERIT_ENV=1 in the registry will fall back to process.env
+    // API keys, which is the correct behaviour for local dev. Warn but proceed.
+    const hasCloudKeys = Object.keys(providerContext.cloud).length > 0;
+    const hasLocalUrls = Object.keys(providerContext.local).length > 0;
+    if (!hasCloudKeys && !hasLocalUrls) {
+      console.warn(
+        `[debate-workflow] No stored credentials for user ${session.createdBy}. ` +
+          "Falling back to process.env via PARLOIR_DEV_INHERIT_ENV shim.",
+      );
+    }
+
     // Run the debate directly (no step.run wrapper). step.waitForEvent inside
     // the control plane must be called at the top level of the function body;
     // nested step.* calls are not legal in Inngest. Trade-off: a catastrophic
@@ -82,6 +103,7 @@ export const startDebate = inngest.createFunction(
     await runDebate(
       session,
       participants,
+      providerContext,
       storage,
       {
         async emit(evt: StreamEvent) {

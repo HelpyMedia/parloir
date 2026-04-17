@@ -40,9 +40,10 @@ export async function synthesize(params: {
   session: Session;
   transcript: Turn[];
   synthesizerModel: string;
+  ctx: ProviderContext;
   sink: StreamSink;
 }): Promise<SynthesisArtifact> {
-  const { session, transcript, synthesizerModel } = params;
+  const { session, transcript, synthesizerModel, ctx } = params;
 
   const transcriptText = transcript
     .map(
@@ -50,9 +51,8 @@ export async function synthesize(params: {
     )
     .join("\n\n");
 
-  // TODO(Task 10): pass real ProviderContext from worker
   const result = await generateObject({
-    model: resolveModel(synthesizerModel, {} as ProviderContext),
+    model: resolveModel(synthesizerModel, ctx),
     schema: SynthesisSchema,
     temperature: 0.3,
     messages: [

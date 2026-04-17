@@ -48,8 +48,9 @@ export async function evaluateConsensus(params: {
   transcript: Turn[];
   participants: Participant[];
   judgeModel: string;
+  ctx: ProviderContext;
 }): Promise<ConsensusReport> {
-  const { question, transcript, participants, judgeModel } = params;
+  const { question, transcript, participants, judgeModel, ctx } = params;
 
   const participantList = participants
     .map((p) => `- ${p.personaId} (seat ${p.seatIndex})`)
@@ -62,9 +63,8 @@ export async function evaluateConsensus(params: {
     )
     .join("\n\n");
 
-  // TODO(Task 10): pass real ProviderContext from worker
   const result = await generateObject({
-    model: resolveModel(judgeModel, {} as ProviderContext),
+    model: resolveModel(judgeModel, ctx),
     schema: ConsensusSchema,
     temperature: 0.2, // low — we want consistent classification, not creativity
     messages: [

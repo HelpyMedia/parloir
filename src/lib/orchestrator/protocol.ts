@@ -63,6 +63,7 @@ export interface Storage {
 export async function runOpeningPhase(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ): Promise<Turn[]> {
@@ -75,6 +76,7 @@ export async function runOpeningPhase(
       runAgentTurn({
         session,
         participant,
+        ctx,
         phase: "opening",
         roundNumber: 0,
         turnIndex: idx,
@@ -100,6 +102,7 @@ export async function runOpeningPhase(
 export async function runCritiqueRound(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   roundNumber: number,
   storage: Storage,
   sink: StreamSink,
@@ -137,6 +140,7 @@ export async function runCritiqueRound(
     const turn = await runAgentTurn({
       session,
       participant: activeParticipants[i],
+      ctx,
       phase: "critique",
       roundNumber,
       turnIndex,
@@ -154,6 +158,7 @@ export async function runCritiqueRound(
 export async function runConsensusCheck(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ): Promise<ConsensusReport> {
@@ -169,6 +174,7 @@ export async function runConsensusCheck(
     transcript,
     participants,
     judgeModel: session.protocol.judgeModel,
+    ctx,
   });
 
   await sink.emit({ type: "consensus_report", report });
@@ -185,6 +191,7 @@ export async function runConsensusCheck(
 export async function runAdaptiveRound(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   report: ConsensusReport,
   storage: Storage,
   sink: StreamSink,
@@ -217,6 +224,7 @@ export async function runAdaptiveRound(
   return runCritiqueRound(
     session,
     reseated,
+    ctx,
     session.currentRound,
     storage,
     sink,
@@ -227,6 +235,7 @@ export async function runAdaptiveRound(
 // ─── Phase 5: Synthesis (secretary) ─────────────────────────────────────────
 export async function runSynthesis(
   session: Session,
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ) {
@@ -237,6 +246,7 @@ export async function runSynthesis(
     session,
     transcript,
     synthesizerModel: session.protocol.synthesizerModel,
+    ctx,
     sink,
   });
 
@@ -249,6 +259,7 @@ export async function runSynthesis(
 export async function runDebate(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
   controlPlane: ControlPlane,
@@ -258,7 +269,7 @@ export async function runDebate(
     // opening — agents must start blind. We drain after, before critique.
     await storage.updateSession(session.id, { status: "opening", currentRound: 0 });
     session.currentRound = 0;
-    await runOpeningPhase(session, participants, storage, sink);
+    await runOpeningPhase(session, participants, ctx, storage, sink);
 
     await drainInjectionsAndWait(session, "opening", storage, sink, controlPlane);
 
@@ -275,6 +286,7 @@ export async function runDebate(
       await runCritiqueRound(
         session,
         participants,
+        ctx,
         round,
         storage,
         sink,
@@ -283,7 +295,7 @@ export async function runDebate(
 
       await drainInjectionsAndWait(session, "critique", storage, sink, controlPlane);
 
-      const report = await runConsensusCheck(session, participants, storage, sink);
+      const report = await runConsensusCheck(session, participants, ctx, storage, sink);
 
       if (report.consensusLevel >= session.protocol.consensusThreshold) {
         consensusReached = true;
@@ -308,6 +320,7 @@ export async function runDebate(
         await runAdaptiveRound(
           session,
           participants,
+          ctx,
           report,
           storage,
           sink,
@@ -320,7 +333,7 @@ export async function runDebate(
     // Phase 5: synthesis
     await drainInjectionsAndWait(session, "synthesis", storage, sink, controlPlane);
     await storage.updateSession(session.id, { status: "synthesis" });
-    await runSynthesis(session, storage, sink);
+    await runSynthesis(session, ctx, storage, sink);
 
     await storage.updateSession(session.id, {
       status: "completed",
@@ -341,6 +354,7 @@ export async function runDebate(
 async function runAgentTurn(params: {
   session: Session;
   participant: Participant;
+  ctx: ProviderContext;
   phase: Phase;
   roundNumber: number;
   turnIndex: number;
@@ -348,12 +362,16 @@ async function runAgentTurn(params: {
   storage: Storage;
   sink: StreamSink;
 }): Promise<Turn> {
-  const { session, participant, phase, roundNumber, turnIndex, visibleHistory, storage, sink } =
+  const { session, participant, ctx, phase, roundNumber, turnIndex, visibleHistory, storage, sink } =
     params;
 
   const persona = await loadPersona(participant.personaId);
-  // TODO(Task 10): pass real ProviderContext from worker
-  const model = resolveModel(persona.model, {} as ProviderContext);
+  // Apply per-persona model override if configured on the session, falling back
+  // to the persona's default model. This lets session creators swap models per
+  // participant without editing the persona template.
+  const overrideModel = session.participantModelOverrides?.[persona.id];
+  const modelId = overrideModel ?? persona.model;
+  const model = resolveModel(modelId, ctx);
   const tools = await buildToolset(persona.toolIds, session.id);
 
   await sink.emit({
@@ -404,7 +422,7 @@ async function runAgentTurn(params: {
   const tokensIn = usage.inputTokens ?? 0;
   const tokensOut = usage.outputTokens ?? 0;
   const providerMetadata = await result.providerMetadata;
-  const costUsd = extractCostUsd(providerMetadata, persona.model, tokensIn, tokensOut);
+  const costUsd = extractCostUsd(providerMetadata, modelId, tokensIn, tokensOut);
   const turn: Turn = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -419,7 +437,8 @@ async function runAgentTurn(params: {
     tokensIn,
     tokensOut,
     costUsd,
-    model: persona.model,
+    // Record the actual model used (may differ from persona.model if overridden).
+    model: modelId,
     createdAt: new Date(),
   };
 
