@@ -21,7 +21,7 @@ pnpm db:migrate      # apply migrations
 pnpm db:studio       # open Drizzle Studio
 ```
 
-Local setup requires Postgres with pgvector. Order matters on a fresh DB: run `psql $DATABASE_URL -f db/migrations/0000_setup.sql` **first** to install the `vector` extension, then `pnpm db:migrate` to apply the Drizzle-generated migration (the `embeddings` table uses the `vector` type, so the extension must exist beforehand). Minimum env: `OPENROUTER_API_KEY`, `DATABASE_URL`. No test runner is wired up yet — `pnpm lint` and `pnpm typecheck` are the gates.
+Local setup requires Postgres with pgvector. Order matters on a fresh DB: run `psql $DATABASE_URL -f db/migrations/0000_setup.sql` **first** to install the `vector` extension, then `pnpm db:migrate` to apply the Drizzle-generated migration (the `embeddings` table uses the `vector` type, so the extension must exist beforehand). Minimum env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `PARLOIR_ENCRYPTION_KEY`. Provider keys are configured per-user via `/settings` (BYOK); for single-user iteration, set `PARLOIR_DEV_INHERIT_ENV=1` plus `OPENROUTER_API_KEY` / etc. No test runner is wired up yet — `pnpm lint` and `pnpm typecheck` are the gates.
 
 Two terminals are needed during dev: one for `pnpm inngest:dev`, one for `pnpm dev`. A debate will not run without the Inngest worker.
 
@@ -69,13 +69,24 @@ Protocol rules are research-grounded (see `CONTRIBUTING.md` citations). Do not a
 
 For protocol work, run debates with `ollama/llama3.2` as every persona — pennies per session, fast feedback loop. Validate cross-provider behavior only after the logic is right.
 
+## Auth + BYOK
+
+Live as of 2026-04-17. Parloir is multi-tenant: every user signs in and brings their own provider credentials.
+
+- **Auth:** Better Auth (email + password, no OAuth in v1). Config at `src/lib/auth/config.ts`; routes at `/api/auth/[...all]`. Session cookie; `getCurrentUser()` / `requireUser()` helpers at `src/lib/auth/server.ts`. Middleware (`src/middleware.ts`) gates `/sessions`, `/settings`, `/api/sessions`, `/api/credentials`, `/api/providers`.
+- **Credentials:** Per-user API keys are stored AES-256-GCM–encrypted in `user_credentials` (keyed on `(userId, provider)`). Local server URLs (Ollama, LM Studio) in `user_provider_settings`. Encrypt/decrypt via `src/lib/crypto/keyring.ts` using `PARLOIR_ENCRYPTION_KEY` (32 bytes, base64). Service layer at `src/lib/credentials/service.ts`; REST at `/api/credentials`, `/api/credentials/[provider]`, `/api/credentials/[provider]/test`.
+- **Provider registry (per-request):** `resolveModel(modelId, ctx: ProviderContext)` — no module-level singletons. The context is loaded once per debate in the Inngest worker (`load-credentials` step) via `loadProviderContext(session.createdBy)` and threaded through `runDebate` → phase functions → `runAgentTurn`. Dev shim: `PARLOIR_DEV_INHERIT_ENV=1` restores the old `process.env` behavior for single-user iteration.
+- **Per-persona models:** `sessions.participant_model_overrides` is a JSONB map `{ personaId: modelId }`. At turn time: override → persona default → protocol default. Pickable per persona in `/sessions/new` via `ModelPickerInline`, which fetches `/api/providers/[provider]/models` (live catalog for OpenRouter/Ollama/LM Studio; curated list in `src/lib/providers/catalog.ts` for Anthropic/OpenAI/Google).
+- **Required env:** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `PARLOIR_ENCRYPTION_KEY`, `DATABASE_URL`. No provider keys are required on the server anymore — users supply their own.
+
 ## Known gaps to be aware of
 
-- No auth yet; session `createdBy` is unwired.
 - `buildToolset` doesn't call a real web search provider.
 - Persona DB loading is a TODO — templates directory is the source of truth.
 - No per-turn token budget enforcement; a runaway agent can burn tokens.
 - Cost computation in `turn.costUsd` is stubbed to `0`.
+- vLLM provider is supported in `resolveModel` but not BYOK-configurable yet (still reads `VLLM_BASE_URL` from env).
+- Key rotation: if `PARLOIR_ENCRYPTION_KEY` changes, stored credentials must be manually re-encrypted — no tooling ships for this.
 
 ## Pause / Inject / Resume
 

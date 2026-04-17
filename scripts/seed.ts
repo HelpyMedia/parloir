@@ -11,13 +11,18 @@ import * as schema from "../src/lib/db/schema";
 import { listTemplatePersonas } from "../src/lib/personas";
 import { sql } from "drizzle-orm";
 
+// Real users now go through Better Auth signup. The dev user only exists in
+// development so scripts/seed.ts can still insert sessions directly for
+// protocol iteration without signing in.
 const DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 async function main() {
-  await db
-    .insert(schema.users)
-    .values({ id: DEV_USER_ID, email: "dev@parloir.local", name: "Dev User" })
-    .onConflictDoNothing();
+  if (process.env.NODE_ENV === "development") {
+    await db
+      .insert(schema.users)
+      .values({ id: DEV_USER_ID, email: "dev@parloir.local", name: "Dev User" })
+      .onConflictDoNothing();
+  }
 
   const personas = await listTemplatePersonas();
   for (const p of personas) {
@@ -52,7 +57,8 @@ async function main() {
   }
 
   const count = personas.length;
-  console.log(`Seeded 1 user (${DEV_USER_ID}) and ${count} personas:`);
+  const userNote = process.env.NODE_ENV === "development" ? `1 dev user (${DEV_USER_ID}) and ` : "";
+  console.log(`Seeded ${userNote}${count} personas:`);
   for (const p of personas) console.log(`  - ${p.id} (${p.role})`);
   process.exit(0);
 }
