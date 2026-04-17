@@ -47,3 +47,34 @@ export function estimateCostUsd(
     (tokensOut * p.outputPerMillion) / 1_000_000
   );
 }
+
+/**
+ * Prefer the provider's own cost report when it gives us one. OpenRouter
+ * does (in USD) when we pass `providerOptions.openrouter.usage.include`.
+ * Everyone else (direct Anthropic/OpenAI/Google SDKs, Ollama) returns
+ * only tokens; fall back to the local pricing table.
+ *
+ * providerMetadata shape is defined by the AI SDK but keys/values are
+ * provider-specific, so we narrow defensively.
+ */
+export function extractCostUsd(
+  providerMetadata: unknown,
+  modelId: string,
+  tokensIn: number,
+  tokensOut: number,
+): number {
+  const authoritative = readOpenRouterCost(providerMetadata);
+  if (authoritative !== null) return authoritative;
+  return estimateCostUsd(modelId, tokensIn, tokensOut);
+}
+
+function readOpenRouterCost(providerMetadata: unknown): number | null {
+  if (!providerMetadata || typeof providerMetadata !== "object") return null;
+  const or = (providerMetadata as Record<string, unknown>).openrouter;
+  if (!or || typeof or !== "object") return null;
+  const usage = (or as Record<string, unknown>).usage;
+  if (!usage || typeof usage !== "object") return null;
+  const cost = (usage as Record<string, unknown>).cost;
+  if (typeof cost === "number" && Number.isFinite(cost)) return cost;
+  return null;
+}

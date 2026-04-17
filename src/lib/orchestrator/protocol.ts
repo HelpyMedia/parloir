@@ -21,7 +21,7 @@ import { resolveModel } from "@/lib/providers/registry";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
 import { evaluateConsensus } from "./consensus";
-import { estimateCostUsd } from "./pricing";
+import { extractCostUsd } from "./pricing";
 import { synthesize } from "./synthesis";
 import type {
   Session,
@@ -344,6 +344,11 @@ async function runAgentTurn(params: {
     temperature: persona.temperature,
     tools,
     stopWhen: stepCountIs(5),
+    // OpenRouter returns authoritative cost (USD) in the final usage chunk
+    // when this flag is set. Harmless for non-OpenRouter providers (ignored).
+    providerOptions: {
+      openrouter: { usage: { include: true } },
+    },
     // TODO: prompt caching — set cache control on system messages to reduce costs.
   });
 
@@ -356,6 +361,8 @@ async function runAgentTurn(params: {
   const usage = await result.usage;
   const tokensIn = usage.inputTokens ?? 0;
   const tokensOut = usage.outputTokens ?? 0;
+  const providerMetadata = await result.providerMetadata;
+  const costUsd = extractCostUsd(providerMetadata, persona.model, tokensIn, tokensOut);
   const turn: Turn = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -369,7 +376,7 @@ async function runAgentTurn(params: {
     references: extractReferences(fullText, visibleHistory),
     tokensIn,
     tokensOut,
-    costUsd: estimateCostUsd(persona.model, tokensIn, tokensOut),
+    costUsd,
     model: persona.model,
     createdAt: new Date(),
   };
