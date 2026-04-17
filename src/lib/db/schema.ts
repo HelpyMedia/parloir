@@ -12,6 +12,7 @@
  *   so the same RAG store serves personas, sessions, and global corpora.
  */
 
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -67,8 +68,11 @@ export const users = pgTable("users", {
 // Named auth_sessions / auth_accounts / auth_verifications to avoid collision
 // with Parloir's existing `sessions` table. Better Auth is configured below
 // (in auth/config.ts) to use these names via the schema mapping option.
+// Better Auth owns these IDs as opaque strings. We set a DB-level default so
+// inserts that omit `id` (auth config uses advanced.database.generateId: false)
+// don't violate NOT NULL — see src/lib/auth/config.ts.
 export const authSessions = pgTable("auth_sessions", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -79,7 +83,7 @@ export const authSessions = pgTable("auth_sessions", {
 });
 
 export const authAccounts = pgTable("auth_accounts", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
@@ -95,7 +99,7 @@ export const authAccounts = pgTable("auth_accounts", {
 });
 
 export const authVerifications = pgTable("auth_verifications", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

@@ -14,8 +14,8 @@ const CLOUD: Array<{ id: Cloud; name: string; hint: string }> = [
 ];
 
 const LOCAL: Array<{ id: Local; name: string; hint: string; defaultUrl: string }> = [
-  { id: "ollama", name: "Ollama", hint: "Run models locally via Ollama.", defaultUrl: "http://localhost:11434/api" },
-  { id: "lmstudio", name: "LM Studio", hint: "OpenAI-compatible local server.", defaultUrl: "http://localhost:1234/v1" },
+  { id: "ollama", name: "Ollama", hint: "Run models locally via Ollama.", defaultUrl: "http://localhost:11434" },
+  { id: "lmstudio", name: "LM Studio", hint: "OpenAI-compatible local server.", defaultUrl: "http://localhost:1234" },
 ];
 
 interface Props {

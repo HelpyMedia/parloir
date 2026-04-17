@@ -16,6 +16,23 @@ export function isLocalProvider(v: string): v is LocalProvider {
   return (LOCAL_PROVIDERS as readonly string[]).includes(v);
 }
 
+/**
+ * Normalize a local-provider base URL to its root form (no trailing `/api`,
+ * `/v1`, or slash). All consumers — the test route, models catalog, and the
+ * provider registry — append the appropriate suffix themselves, so we store
+ * the root only. This makes user input forgiving: `http://localhost:11434`,
+ * `http://localhost:11434/`, and `http://localhost:11434/api` all normalize
+ * to the same value.
+ */
+export function normalizeLocalBaseUrl(provider: LocalProvider, url: string): string {
+  const suffixes = provider === "ollama" ? ["/api"] : ["/v1"];
+  let trimmed = url.trim().replace(/\/+$/, "");
+  for (const s of suffixes) {
+    if (trimmed.toLowerCase().endsWith(s)) trimmed = trimmed.slice(0, -s.length);
+  }
+  return trimmed;
+}
+
 export async function upsertCredential(userId: string, provider: CloudProvider, apiKey: string): Promise<void> {
   const ct = encrypt(apiKey);
   await db
@@ -52,12 +69,13 @@ export async function deleteCredential(userId: string, provider: CloudProvider):
 }
 
 export async function upsertLocalUrl(userId: string, provider: LocalProvider, baseUrl: string): Promise<void> {
+  const normalized = normalizeLocalBaseUrl(provider, baseUrl);
   await db
     .insert(schema.userProviderSettings)
-    .values({ userId, provider, baseUrl })
+    .values({ userId, provider, baseUrl: normalized })
     .onConflictDoUpdate({
       target: [schema.userProviderSettings.userId, schema.userProviderSettings.provider],
-      set: { baseUrl, updatedAt: new Date() },
+      set: { baseUrl: normalized, updatedAt: new Date() },
     });
 }
 

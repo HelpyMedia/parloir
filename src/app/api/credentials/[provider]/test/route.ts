@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
-import { isCloudProvider, isLocalProvider } from "@/lib/credentials/service";
+import { isCloudProvider, isLocalProvider, normalizeLocalBaseUrl, type LocalProvider } from "@/lib/credentials/service";
 
 const TestBody = z.object({
   apiKey: z.string().optional(),
@@ -44,17 +44,16 @@ async function testCloud(provider: string, apiKey: string): Promise<{ ok: boolea
   }
 }
 
-async function testLocal(provider: string, baseUrl: string): Promise<{ ok: boolean; detail?: string }> {
+async function testLocal(provider: LocalProvider, baseUrl: string): Promise<{ ok: boolean; detail?: string }> {
   try {
+    const root = normalizeLocalBaseUrl(provider, baseUrl);
     if (provider === "ollama") {
-      const url = baseUrl.replace(/\/$/, "") + "/api/tags";
-      const r = await fetch(url);
+      const r = await fetch(root + "/api/tags");
       if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
       return { ok: true };
     }
     if (provider === "lmstudio") {
-      const url = baseUrl.replace(/\/$/, "") + "/v1/models";
-      const r = await fetch(url);
+      const r = await fetch(root + "/v1/models");
       if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
       return { ok: true };
     }

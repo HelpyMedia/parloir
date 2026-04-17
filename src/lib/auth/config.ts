@@ -24,4 +24,7 @@ export const auth = betterAuth({
   session: { expiresIn: 60 * 60 * 24 * 30 },
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,
+  // users.id is uuid defaultRandom() — let Postgres generate it so Better
+  // Auth doesn't supply a string ID that fails the uuid type check.
+  advanced: { database: { generateId: false } },
 });

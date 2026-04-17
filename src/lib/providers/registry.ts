@@ -25,6 +25,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { LanguageModel } from "ai";
 import type { ProviderContext } from "@/lib/orchestrator/types";
+import { normalizeLocalBaseUrl } from "@/lib/credentials/service";
 
 function devInheritsEnv(): boolean {
   return process.env.PARLOIR_DEV_INHERIT_ENV === "1";
@@ -75,16 +76,16 @@ export function resolveModel(modelId: string, ctx: ProviderContext): LanguageMod
   }
 
   if (modelId.startsWith("ollama/")) {
-    const ollama = createOllama({
-      baseURL: c.local.ollama ?? "http://localhost:11434/api",
-    });
+    const root = normalizeLocalBaseUrl("ollama", c.local.ollama ?? "http://localhost:11434");
+    const ollama = createOllama({ baseURL: root + "/api" });
     return ollama(modelId.slice("ollama/".length));
   }
 
   if (modelId.startsWith("lmstudio/")) {
+    const root = normalizeLocalBaseUrl("lmstudio", c.local.lmstudio ?? "http://localhost:1234");
     const lmstudio = createOpenAI({
       apiKey: "lm-studio", // LM Studio ignores the key
-      baseURL: c.local.lmstudio ?? "http://localhost:1234/v1",
+      baseURL: root + "/v1",
     });
     return lmstudio(modelId.slice("lmstudio/".length));
   }

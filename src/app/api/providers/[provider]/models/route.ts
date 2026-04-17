@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
-import { getCredential, listLocalUrls } from "@/lib/credentials/service";
+import { getCredential, listLocalUrls, normalizeLocalBaseUrl } from "@/lib/credentials/service";
 import { CURATED } from "@/lib/providers/catalog";
 
 interface OpenRouterModel { id: string; name?: string }
@@ -17,16 +17,14 @@ async function openRouterModels(apiKey: string) {
 }
 
 async function ollamaModels(baseUrl: string) {
-  const url = baseUrl.replace(/\/$/, "") + "/api/tags";
-  const r = await fetch(url);
+  const r = await fetch(normalizeLocalBaseUrl("ollama", baseUrl) + "/api/tags");
   if (!r.ok) throw new Error(`ollama ${r.status}`);
   const body = (await r.json()) as OllamaTagsResponse;
   return (body.models ?? []).map((m) => ({ id: `ollama/${m.name}`, label: m.name }));
 }
 
 async function lmstudioModels(baseUrl: string) {
-  const url = baseUrl.replace(/\/$/, "") + "/v1/models";
-  const r = await fetch(url);
+  const r = await fetch(normalizeLocalBaseUrl("lmstudio", baseUrl) + "/v1/models");
   if (!r.ok) throw new Error(`lmstudio ${r.status}`);
   const body = (await r.json()) as OpenAICompatModels;
   return (body.data ?? []).map((m) => ({ id: `lmstudio/${m.id}`, label: m.id }));
