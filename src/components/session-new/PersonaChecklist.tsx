@@ -12,9 +12,10 @@ interface Props {
   connectedProviders: string[];
   onToggle: (personaId: string) => void;
   onOverride: (personaId: string, modelId: string) => void;
+  highlightedIds?: Set<string>;
 }
 
-export function PersonaChecklist({ personas, selected, overrides, connectedProviders, onToggle, onOverride }: Props) {
+export function PersonaChecklist({ personas, selected, overrides, connectedProviders, onToggle, onOverride, highlightedIds }: Props) {
   return (
     <fieldset className="space-y-2">
       <legend className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
@@ -23,10 +24,14 @@ export function PersonaChecklist({ personas, selected, overrides, connectedProvi
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {personas.map((p) => {
           const checked = selected.includes(p.id);
+          const highlighted = highlightedIds?.has(p.id) ?? false;
           return (
             <label
-              key={p.id}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-[var(--color-spot-warm)]"
+              key={`${p.id}-${highlighted ? "h" : "n"}`}
+              className={
+                "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-[var(--color-spot-warm)]" +
+                (highlighted ? " parloir-suggest-row-glow" : "")
+              }
               style={{
                 borderColor: checked ? "var(--color-spot-warm)" : "var(--color-border-subtle)",
                 backgroundColor: checked ? "var(--color-spot-halo)" : "var(--color-surface-card)",

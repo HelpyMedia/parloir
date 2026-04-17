@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import type { Persona } from "@/lib/orchestrator/types";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
 import { LocalOnlyReliabilityNote } from "./LocalOnlyReliabilityNote";
 import { ModeSelector, type Mode } from "./ModeSelector";
-import { PanelPresetPicker } from "./PanelPresetPicker";
 import { PersonaChecklist } from "./PersonaChecklist";
 import { QuestionInput } from "./QuestionInput";
 import { StartButton } from "./StartButton";
+import {
+  SuggestPanelButton,
+  type SuggestStatus,
+} from "./SuggestPanelButton";
 
 interface Props {
   personas: Persona[];
@@ -17,7 +20,25 @@ interface Props {
   hasCloudProvider: boolean;
 }
 
-export function NewSessionForm({ personas, connectedProviders, hasCloudProvider }: Props) {
+interface Snapshot {
+  title: string;
+  selectedIds: string[];
+  overrides: Record<string, string>;
+  depth: Depth;
+}
+
+interface PanelSuggestionResponse {
+  title: string;
+  personaIds: string[];
+  overrides: Record<string, string>;
+  depth: Depth;
+}
+
+export function NewSessionForm({
+  personas,
+  connectedProviders,
+  hasCloudProvider,
+}: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -30,8 +51,127 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const setOverride = (personaId: string, modelId: string) =>
-    setOverrides((prev) => ({ ...prev, [personaId]: modelId }));
+  // --- Suggest-a-panel state ----------------------------------------------
+  const [suggestStatus, setSuggestStatus] = useState<SuggestStatus>("idle");
+  const [titleAnimationKey, setTitleAnimationKey] = useState<number | undefined>(
+    undefined,
+  );
+  const [suggestedRowIds, setSuggestedRowIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const snapshotRef = useRef<Snapshot | null>(null);
+
+  const clearSuggestionState = useCallback(() => {
+    snapshotRef.current = null;
+    setSuggestStatus("idle");
+    setSuggestedRowIds(new Set());
+  }, []);
+
+  // Any manual edit to a suggested field invalidates the snapshot.
+  const invalidateIfJustApplied = useCallback(() => {
+    if (snapshotRef.current !== null) clearSuggestionState();
+  }, [clearSuggestionState]);
+
+  const onUserEditTitle = useCallback(
+    (v: string) => {
+      invalidateIfJustApplied();
+      setTitle(v);
+    },
+    [invalidateIfJustApplied],
+  );
+  const onUserEditQuestion = useCallback(
+    (v: string) => {
+      // The question is not part of the suggestion, but editing it after
+      // apply still means the user has moved on — clear the undo chip.
+      invalidateIfJustApplied();
+      setQuestion(v);
+    },
+    [invalidateIfJustApplied],
+  );
+  const onUserDepth = useCallback(
+    (d: Depth) => {
+      invalidateIfJustApplied();
+      setDepth(d);
+    },
+    [invalidateIfJustApplied],
+  );
+  const onUserOverride = useCallback(
+    (personaId: string, modelId: string) => {
+      invalidateIfJustApplied();
+      setOverrides((prev) => ({ ...prev, [personaId]: modelId }));
+    },
+    [invalidateIfJustApplied],
+  );
+  const onUserToggle = useCallback(
+    (id: string) => {
+      invalidateIfJustApplied();
+      setSelectedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      );
+    },
+    [invalidateIfJustApplied],
+  );
+
+  const handleSuggest = useCallback(async () => {
+    if (suggestStatus === "thinking") return;
+    if (question.trim().length < 10) return;
+
+    setSuggestStatus("thinking");
+    try {
+      const r = await fetch("/api/sessions/recommend-panel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question.trim() }),
+      });
+      if (r.status === 204 || !r.ok) {
+        // Silent failure — brief says the form must stay usable.
+        setSuggestStatus("idle");
+        return;
+      }
+      const data = (await r.json()) as PanelSuggestionResponse;
+
+      // Snapshot pre-apply state for undo.
+      snapshotRef.current = {
+        title,
+        selectedIds,
+        overrides,
+        depth,
+      };
+
+      // Apply. Order matters: compute the row-glow set *before* mutating
+      // selectedIds so we diff correctly.
+      const glow = new Set<string>();
+      for (const id of data.personaIds) if (!selectedIds.includes(id)) glow.add(id);
+      for (const id of selectedIds) if (!data.personaIds.includes(id)) glow.add(id);
+
+      if (title.trim() === "") {
+        setTitle(data.title);
+        setTitleAnimationKey((k) => (k ?? 0) + 1);
+      }
+      setSelectedIds(data.personaIds);
+      setOverrides(data.overrides);
+      setDepth(data.depth);
+      setSuggestedRowIds(glow);
+      setSuggestStatus("just-applied");
+    } catch {
+      // Network error — silent no-op.
+      setSuggestStatus("idle");
+    }
+  }, [suggestStatus, question, title, selectedIds, overrides, depth]);
+
+  const handleUndo = useCallback(() => {
+    const snap = snapshotRef.current;
+    if (!snap) {
+      clearSuggestionState();
+      return;
+    }
+    setTitle(snap.title);
+    setSelectedIds(snap.selectedIds);
+    setOverrides(snap.overrides);
+    setDepth(snap.depth);
+    clearSuggestionState();
+  }, [clearSuggestionState]);
+  // ----------------------------------------------------------------------
 
   const canStart = useMemo(() => {
     if (!title.trim() || title.length > 200) return false;
@@ -40,10 +180,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider 
     return true;
   }, [title, question, selectedIds]);
 
-  const toggle = (id: string) =>
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+  const canSuggest = question.trim().length >= 10;
 
   const handleStart = async () => {
     if (!canStart) return;
@@ -66,7 +203,9 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider 
           personaIds: selectedIds,
           protocol: { maxCritiqueRounds: DEPTH_ROUNDS[depth] },
           participantOverrides:
-            Object.keys(participantOverrides).length > 0 ? participantOverrides : undefined,
+            Object.keys(participantOverrides).length > 0
+              ? participantOverrides
+              : undefined,
         }),
       });
       if (!createRes.ok) {
@@ -110,20 +249,30 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider 
       <QuestionInput
         title={title}
         question={question}
-        onTitle={setTitle}
-        onQuestion={setQuestion}
+        onTitle={onUserEditTitle}
+        onQuestion={onUserEditQuestion}
+        titleAnimationKey={titleAnimationKey}
+        suggestSlot={
+          <SuggestPanelButton
+            status={suggestStatus}
+            disabled={!canSuggest}
+            onSuggest={handleSuggest}
+            onUndo={handleUndo}
+            onAutoClear={clearSuggestionState}
+          />
+        }
       />
 
       <ModeSelector value={mode} onChange={setMode} />
-      <PanelPresetPicker />
-      <DepthSelector value={depth} onChange={setDepth} />
+      <DepthSelector value={depth} onChange={onUserDepth} />
       <PersonaChecklist
         personas={personas}
         selected={selectedIds}
         overrides={overrides}
         connectedProviders={connectedProviders}
-        onToggle={toggle}
-        onOverride={setOverride}
+        onToggle={onUserToggle}
+        onOverride={onUserOverride}
+        highlightedIds={suggestedRowIds}
       />
 
       {error && (
