@@ -332,7 +332,15 @@ export async function runDebate(
 
       const report = await runConsensusCheck(session, participants, ctx, storage, sink);
 
-      if (report.consensusLevel >= session.protocol.consensusThreshold) {
+      // Honor the judge's explicit "stop" recommendation even when the
+      // numeric consensusLevel sits below the threshold — this is how the
+      // resilience stub signals "I couldn't produce a real report, don't
+      // burn another round". Without this check the stub's 0.5 level falls
+      // through to another critique round.
+      if (
+        report.recommendation === "proceed_to_synthesis" ||
+        report.consensusLevel >= session.protocol.consensusThreshold
+      ) {
         consensusReached = true;
       } else if (
         report.recommendation === "another_round" &&
