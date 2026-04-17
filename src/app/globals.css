@@ -61,3 +61,26 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+@keyframes parloir-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes parloir-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.parloir-suggest-fade-in {
+  animation: parloir-fade-in 320ms ease-out both;
+}
+
+@keyframes parloir-suggest-row-glow {
+  0% { box-shadow: 0 0 0 2px var(--color-spot-halo); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.parloir-suggest-row-glow {
+  animation: parloir-suggest-row-glow 600ms ease-out both;
+}
