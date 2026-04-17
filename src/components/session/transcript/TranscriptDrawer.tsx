@@ -15,22 +15,32 @@ interface Props {
 }
 
 export function TranscriptDrawer({ turns, live, consensusReports, personas }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const autoFollow = useRef(true);
 
   useEffect(() => {
-    if (!autoFollow.current || !scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [turns.length, live?.text.length]);
+    if (typeof window === "undefined") return;
+    const onScroll = () => {
+      const distance =
+        document.documentElement.scrollHeight -
+        window.scrollY -
+        window.innerHeight;
+      autoFollow.current = distance < 96;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    autoFollow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-  };
+  useEffect(() => {
+    if (!autoFollow.current || typeof window === "undefined") return;
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [turns.length, live?.text.length]);
 
   const jumpToTurn = (id: string) => {
     const node = document.getElementById(`turn-${id}`);
-    if (node && scrollRef.current) {
+    if (node) {
       autoFollow.current = false;
       node.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -40,9 +50,7 @@ export function TranscriptDrawer({ turns, live, consensusReports, personas }: Pr
 
   return (
     <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-6 py-4 pb-24"
+      className="px-6 py-4 pb-24"
       role="log"
       aria-label="Debate transcript"
     >

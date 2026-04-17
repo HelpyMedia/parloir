@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "participant_model_overrides" jsonb DEFAULT '{}'::jsonb NOT NULL;

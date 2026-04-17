@@ -8,6 +8,41 @@
       "when": 1776376022294,
       "tag": "0000_groovy_gressill",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776380691012,
+      "tag": "0001_shiny_mentor",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776440671362,
+      "tag": "0002_chemical_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776441282736,
+      "tag": "0003_stale_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776441973316,
+      "tag": "0004_wealthy_ares",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776447603081,
+      "tag": "0005_stale_jackal",
+      "breakpoints": true
     }
   ]
 }

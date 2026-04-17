@@ -22,6 +22,8 @@
 
 import { inngest } from "./client";
 import { runDebate } from "@/lib/orchestrator/protocol";
+import { loadProviderContext } from "@/lib/credentials/context";
+import { createInngestControlPlane } from "./control-plane";
 import { storage, db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -64,25 +66,52 @@ export const startDebate = inngest.createFunction(
       completedAt: loaded.sessionRow.completedAt
         ? new Date(loaded.sessionRow.completedAt)
         : null,
+      pauseRequestedAt: loaded.sessionRow.pauseRequestedAt
+        ? new Date(loaded.sessionRow.pauseRequestedAt)
+        : null,
+      pausedAtPhase: loaded.sessionRow.pausedAtPhase ?? null,
     } as unknown as Session;
     const participants = loaded.participantRows as unknown as Participant[];
 
-    // Step 2: run the debate. We do NOT wrap each phase in step.run() here
-    // because StreamEvents are side-effects that must be emitted in order.
-    // Instead, the orchestrator writes events to the DB transactionally as
-    // they're produced — replay safety comes from the phase-level status
-    // updates on the session row.
-    //
-    // If we wanted finer-grained resumability (survive mid-phase crashes),
-    // we would lift runOpeningPhase / runCritiqueRound / etc. into separate
-    // step.run() calls. That's a worthwhile upgrade for Phase 4 of the roadmap.
-    await step.run("run-debate", async () => {
-      await runDebate(session, participants, storage, {
+    // Step 2: load the session owner's provider credentials. This runs as a
+    // separate durable step so that if the workflow resumes after a crash,
+    // credentials are re-fetched from the DB rather than replayed from a
+    // potentially stale Inngest checkpoint.
+    const providerContext = await step.run("load-credentials", async () => {
+      return await loadProviderContext(session.createdBy);
+    });
+
+    // If the user has no cloud keys stored and no local URLs configured,
+    // PARLOIR_DEV_INHERIT_ENV=1 in the registry will fall back to process.env
+    // API keys, which is the correct behaviour for local dev. Warn but proceed.
+    const hasCloudKeys = Object.keys(providerContext.cloud).length > 0;
+    const hasLocalUrls = Object.keys(providerContext.local).length > 0;
+    if (!hasCloudKeys && !hasLocalUrls) {
+      console.warn(
+        `[debate-workflow] No stored credentials for user ${session.createdBy}. ` +
+          "Falling back to process.env via PARLOIR_DEV_INHERIT_ENV shim.",
+      );
+    }
+
+    // Run the debate directly (no step.run wrapper). step.waitForEvent inside
+    // the control plane must be called at the top level of the function body;
+    // nested step.* calls are not legal in Inngest. Trade-off: a catastrophic
+    // crash re-runs the whole debate from the start — acceptable because we
+    // already accept that at the phase level today, and durable pause is worth
+    // the downgrade. Finer-grained resumability is a future roadmap item.
+    const controlPlane = createInngestControlPlane(step, sessionId);
+    await runDebate(
+      session,
+      participants,
+      providerContext,
+      storage,
+      {
         async emit(evt: StreamEvent) {
           await appendStreamEvent(sessionId, evt);
         },
-      });
-    });
+      },
+      controlPlane,
+    );
 
     return { sessionId, completedAt: new Date().toISOString() };
   },

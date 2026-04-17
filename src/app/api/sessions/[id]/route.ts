@@ -145,6 +145,10 @@ export async function GET(
     createdAt: sessionRow.createdAt,
     updatedAt: sessionRow.updatedAt,
     completedAt: sessionRow.completedAt,
+    pauseRequestedAt: sessionRow.pauseRequestedAt ?? null,
+    pausedAtPhase: sessionRow.pausedAtPhase ?? null,
+    // DB column added in Task 11; default to empty until then.
+    participantModelOverrides: {},
   };
 
   const bundle: HydrationBundle = {

@@ -53,6 +53,16 @@ export interface ToolCall {
   durationMs: number;
 }
 
+/** A queued human note waiting to be appended at the next phase boundary. */
+export interface HumanInjection {
+  id: string;
+  sessionId: string;
+  content: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
+}
+
 /** A persona template — reusable across sessions. */
 export interface Persona {
   id: string;
@@ -81,6 +91,16 @@ export interface Participant {
   silenced: boolean;
 }
 
+/**
+ * Per-request provider credentials + local server URLs, loaded once per
+ * debate run from the authenticated user's configured settings. Threaded
+ * through the orchestrator so `resolveModel` can use the right keys.
+ */
+export interface ProviderContext {
+  cloud: Partial<Record<"openrouter" | "anthropic" | "openai" | "google", string>>;
+  local: Partial<Record<"ollama" | "lmstudio", string>>;
+}
+
 /** Protocol configuration — per session. */
 export interface ProtocolConfig {
   /** Max number of critique rounds after the opening. Hard cap on cost. */
@@ -105,8 +125,8 @@ export const DEFAULT_PROTOCOL: ProtocolConfig = {
   enableAdaptiveRound: true,
   hideConfidenceScores: true,
   requireNovelty: true,
-  judgeModel: "anthropic/claude-haiku-4.5",
-  synthesizerModel: "anthropic/claude-opus-4.6",
+  judgeModel: "anthropic/claude-haiku-4-5",
+  synthesizerModel: "anthropic/claude-opus-4-7",
 };
 
 /** The session as a whole. */
@@ -124,6 +144,15 @@ export interface Session {
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;
+  /** Set by POST /pause. Cleared by POST /resume. */
+  pauseRequestedAt: Date | null;
+  /** The phase the session was in when pause was requested — resume target. */
+  pausedAtPhase: Phase | null;
+  /**
+   * Per-persona model override, keyed by personaId. Falls back to persona.model
+   * if absent. Set by the session creator in the New Session form.
+   */
+  participantModelOverrides: Record<string, string>;
 }
 
 /** The judge's structured output after a consensus check. */

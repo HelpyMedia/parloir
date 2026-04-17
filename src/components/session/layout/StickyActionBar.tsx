@@ -1,12 +1,12 @@
 "use client";
 
-import { Download, Pause, Play, Send, Sparkles } from "lucide-react";
+import { Download, Loader2, Pause, Play, Sparkles } from "lucide-react";
 import type { Phase } from "@/lib/orchestrator/types";
 
 interface Props {
   phase: Phase;
+  pausePending: boolean;
   onPauseToggle: () => void;
-  onInterject: () => void;
   onAskRound: () => void;
   onExport: () => void;
   canExport: boolean;
@@ -14,8 +14,8 @@ interface Props {
 
 export function StickyActionBar({
   phase,
+  pausePending,
   onPauseToggle,
-  onInterject,
   onAskRound,
   onExport,
   canExport,
@@ -23,20 +23,23 @@ export function StickyActionBar({
   const isPaused = phase === "paused";
   const isCompleted = phase === "completed" || phase === "failed";
 
+  const pauseLabel = pausePending ? "Pausing…" : isPaused ? "Resume" : "Pause";
+  const pauseIcon = pausePending ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : isPaused ? (
+    <Play className="h-4 w-4" />
+  ) : (
+    <Pause className="h-4 w-4" />
+  );
+
   return (
     <footer className="sticky bottom-0 flex h-16 items-center justify-between gap-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-6">
       <div className="flex items-center gap-2">
         <ActionButton
           onClick={onPauseToggle}
-          disabled={isCompleted}
-          icon={isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-          label={isPaused ? "Resume" : "Pause"}
-        />
-        <ActionButton
-          onClick={onInterject}
-          disabled={isCompleted}
-          icon={<Send className="h-4 w-4" />}
-          label="Interject"
+          disabled={isCompleted || pausePending}
+          icon={pauseIcon}
+          label={pauseLabel}
         />
         <ActionButton
           onClick={onAskRound}

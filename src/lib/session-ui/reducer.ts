@@ -37,7 +37,15 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
   switch (event.type) {
     case "phase_enter": {
       const personaState = resetStatuses(state.personaState, event.phase);
-      return { ...state, phase: event.phase, round: event.round, personaState };
+      const humanInjectionPrompt =
+        event.phase === "paused" ? state.humanInjectionPrompt : null;
+      return {
+        ...state,
+        phase: event.phase,
+        round: event.round,
+        personaState,
+        humanInjectionPrompt,
+      };
     }
 
     case "turn_start": {

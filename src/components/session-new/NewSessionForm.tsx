@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Persona } from "@/lib/orchestrator/types";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
+import { LocalOnlyReliabilityNote } from "./LocalOnlyReliabilityNote";
 import { ModeSelector, type Mode } from "./ModeSelector";
 import { PanelPresetPicker } from "./PanelPresetPicker";
 import { PersonaChecklist } from "./PersonaChecklist";
@@ -12,10 +13,11 @@ import { StartButton } from "./StartButton";
 
 interface Props {
   personas: Persona[];
-  createdBy: string;
+  connectedProviders: string[];
+  hasCloudProvider: boolean;
 }
 
-export function NewSessionForm({ personas, createdBy }: Props) {
+export function NewSessionForm({ personas, connectedProviders, hasCloudProvider }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -24,8 +26,12 @@ export function NewSessionForm({ personas, createdBy }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(
     personas.slice(0, 3).map((p) => p.id),
   );
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setOverride = (personaId: string, modelId: string) =>
+    setOverrides((prev) => ({ ...prev, [personaId]: modelId }));
 
   const canStart = useMemo(() => {
     if (!title.trim() || title.length > 200) return false;
@@ -44,6 +50,13 @@ export function NewSessionForm({ personas, createdBy }: Props) {
     setBusy(true);
     setError(null);
     try {
+      const participantOverrides: Record<string, string> = {};
+      for (const id of selectedIds) {
+        const persona = personas.find((p) => p.id === id);
+        const ov = overrides[id];
+        if (persona && ov && ov !== persona.model) participantOverrides[id] = ov;
+      }
+
       const createRes = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +65,8 @@ export function NewSessionForm({ personas, createdBy }: Props) {
           question: question.trim(),
           personaIds: selectedIds,
           protocol: { maxCritiqueRounds: DEPTH_ROUNDS[depth] },
-          createdBy,
+          participantOverrides:
+            Object.keys(participantOverrides).length > 0 ? participantOverrides : undefined,
         }),
       });
       if (!createRes.ok) {
@@ -106,7 +120,10 @@ export function NewSessionForm({ personas, createdBy }: Props) {
       <PersonaChecklist
         personas={personas}
         selected={selectedIds}
+        overrides={overrides}
+        connectedProviders={connectedProviders}
         onToggle={toggle}
+        onOverride={setOverride}
       />
 
       {error && (
@@ -117,6 +134,8 @@ export function NewSessionForm({ personas, createdBy }: Props) {
           {error}
         </div>
       )}
+
+      {!hasCloudProvider && <LocalOnlyReliabilityNote />}
 
       <div className="flex items-center justify-end gap-4">
         {!canStart && (

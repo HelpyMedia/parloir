@@ -12,10 +12,6 @@ export function TopBar({ session, phase, round, totalCostUsd }: Props) {
   return (
     <header className="flex h-14 items-center justify-between gap-6 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-6">
       <div className="flex items-center gap-3">
-        <span className="font-display text-lg tracking-tight text-[var(--color-spot-warm)]">
-          Parloir
-        </span>
-        <span className="h-4 w-px bg-[var(--color-border-subtle)]" />
         <h1 className="max-w-[40ch] truncate font-display text-base text-[var(--color-text-primary)]">
           {session.title}
         </h1>

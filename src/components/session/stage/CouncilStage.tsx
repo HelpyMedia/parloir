@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Persona } from "@/lib/orchestrator/types";
-import type { UIPersonaState } from "@/lib/session-ui/types";
+import type { LiveTurn, UIPersonaState } from "@/lib/session-ui/types";
+import { StageTicker } from "./StageTicker";
 import { TableScene } from "./TableScene";
 
 interface Props {
@@ -10,9 +11,16 @@ interface Props {
   personaState: Record<string, UIPersonaState>;
   activeSpeakerId: string | null;
   paused: boolean;
+  live: LiveTurn | null;
 }
 
-export function CouncilStage({ personas, personaState, activeSpeakerId, paused }: Props) {
+export function CouncilStage({
+  personas,
+  personaState,
+  activeSpeakerId,
+  paused,
+  live,
+}: Props) {
   return (
     <section className="relative flex min-h-[320px] flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,var(--color-bg-table)_0%,var(--color-bg-chamber)_75%)] p-4">
       <motion.div
@@ -28,6 +36,15 @@ export function CouncilStage({ personas, personaState, activeSpeakerId, paused }
           activeSpeakerId={activeSpeakerId}
         />
       </motion.div>
+      <AnimatePresence mode="wait">
+        {live && activeSpeakerId && !paused && (
+          <StageTicker
+            speakerId={activeSpeakerId}
+            speakerName={live.speakerName}
+            text={live.text}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }

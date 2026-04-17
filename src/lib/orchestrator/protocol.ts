@@ -18,9 +18,14 @@
 
 import { streamText, stepCountIs } from "ai";
 import { resolveModel } from "@/lib/providers/registry";
+import {
+  pickJudgeModelChain,
+  pickSynthesizerModelChain,
+} from "@/lib/providers/defaults";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
 import { evaluateConsensus } from "./consensus";
+import { extractCostUsd } from "./pricing";
 import { synthesize } from "./synthesis";
 import type {
   Session,
@@ -30,7 +35,9 @@ import type {
   StreamEvent,
   ConsensusReport,
   SynthesisArtifact,
+  ProviderContext,
 } from "./types";
+import type { ControlPlane } from "./control";
 
 /** Anything that can emit stream events back to the UI. */
 export interface StreamSink {
@@ -60,6 +67,7 @@ export interface Storage {
 export async function runOpeningPhase(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ): Promise<Turn[]> {
@@ -72,6 +80,7 @@ export async function runOpeningPhase(
       runAgentTurn({
         session,
         participant,
+        ctx,
         phase: "opening",
         roundNumber: 0,
         turnIndex: idx,
@@ -97,42 +106,81 @@ export async function runOpeningPhase(
 export async function runCritiqueRound(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   roundNumber: number,
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ): Promise<Turn[]> {
   await sink.emit({ type: "phase_enter", phase: "critique", round: roundNumber });
-
-  const transcript = await storage.getTranscript(session.id);
-  const turns: Turn[] = [];
 
   // Sequential, not parallel — each agent sees the previous agents' turns this round.
   const activeParticipants = participants
     .filter((p) => !p.silenced)
     .sort((a, b) => a.seatIndex - b.seatIndex);
 
-  for (let idx = 0; idx < activeParticipants.length; idx++) {
-    const participant = activeParticipants[idx];
+  const results: Turn[] = [];
+
+  for (let i = 0; i < activeParticipants.length; i++) {
+    // Between-turn control point: if the user hit pause while the previous
+    // speaker was streaming, we honor it here rather than waiting for the
+    // whole round to finish. Any injection queued during the pause is
+    // appended to the transcript and becomes visible to the next speaker.
+    if (i > 0) {
+      await drainInjectionsAndWait(
+        session,
+        "critique",
+        storage,
+        sink,
+        controlPlane,
+      );
+    }
+
+    const transcript = await storage.getTranscript(session.id);
+    const turnIndex = transcript.filter(
+      (t) => t.phase === "critique" && t.roundNumber === roundNumber,
+    ).length;
+
     const turn = await runAgentTurn({
       session,
-      participant,
+      participant: activeParticipants[i],
+      ctx,
       phase: "critique",
       roundNumber,
-      turnIndex: idx,
-      visibleHistory: [...transcript, ...turns],
+      turnIndex,
+      visibleHistory: transcript,
       storage,
       sink,
     });
-    turns.push(turn);
+    results.push(turn);
   }
 
-  return turns;
+  return results;
+}
+
+/**
+ * Resolve the actual model ID each participant uses, honoring per-session
+ * overrides. Matches the resolution in runAgentTurn so the judge/synth
+ * fallback chain sees the same "known-good" list the debate ran on.
+ */
+async function resolveParticipantModels(
+  session: Session,
+  participants: Participant[],
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const p of participants) {
+    const persona = await loadPersona(p.personaId);
+    const override = session.participantModelOverrides?.[persona.id];
+    out.push(override ?? persona.model);
+  }
+  return out;
 }
 
 // ─── Phase 3: Consensus check (judge agent) ─────────────────────────────────
 export async function runConsensusCheck(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ): Promise<ConsensusReport> {
@@ -143,11 +191,18 @@ export async function runConsensusCheck(
   });
 
   const transcript = await storage.getTranscript(session.id);
+  const personaModels = await resolveParticipantModels(session, participants);
+  const judgeModelChain = pickJudgeModelChain(
+    session.protocol.judgeModel,
+    ctx,
+    personaModels,
+  );
   const report = await evaluateConsensus({
     question: session.question,
     transcript,
     participants,
-    judgeModel: session.protocol.judgeModel,
+    judgeModelChain,
+    ctx,
   });
 
   await sink.emit({ type: "consensus_report", report });
@@ -164,9 +219,11 @@ export async function runConsensusCheck(
 export async function runAdaptiveRound(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   report: ConsensusReport,
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ): Promise<Turn[]> {
   await sink.emit({
     type: "phase_enter",
@@ -192,22 +249,39 @@ export async function runAdaptiveRound(
   // Reassign seat index for this round only — storage is unchanged.
   const reseated = reordered.map((p, i) => ({ ...p, seatIndex: i }));
 
-  return runCritiqueRound(session, reseated, session.currentRound, storage, sink);
+  return runCritiqueRound(
+    session,
+    reseated,
+    ctx,
+    session.currentRound,
+    storage,
+    sink,
+    controlPlane,
+  );
 }
 
 // ─── Phase 5: Synthesis (secretary) ─────────────────────────────────────────
 export async function runSynthesis(
   session: Session,
+  participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
 ) {
   await sink.emit({ type: "phase_enter", phase: "synthesis", round: session.currentRound });
 
   const transcript = await storage.getTranscript(session.id);
+  const personaModels = await resolveParticipantModels(session, participants);
+  const synthesizerModelChain = pickSynthesizerModelChain(
+    session.protocol.synthesizerModel,
+    ctx,
+    personaModels,
+  );
   const artifact = await synthesize({
     session,
     transcript,
-    synthesizerModel: session.protocol.synthesizerModel,
+    synthesizerModelChain,
+    ctx,
     sink,
   });
 
@@ -220,13 +294,19 @@ export async function runSynthesis(
 export async function runDebate(
   session: Session,
   participants: Participant[],
+  ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ) {
   try {
-    // Phase 1: parallel blind opening
+    // Phase 1: parallel blind opening. We DO NOT drain injections before
+    // opening — agents must start blind. We drain after, before critique.
     await storage.updateSession(session.id, { status: "opening", currentRound: 0 });
-    await runOpeningPhase(session, participants, storage, sink);
+    session.currentRound = 0;
+    await runOpeningPhase(session, participants, ctx, storage, sink);
+
+    await drainInjectionsAndWait(session, "opening", storage, sink, controlPlane);
 
     // Phase 2..N: critique rounds with consensus checks
     let consensusReached = false;
@@ -236,11 +316,31 @@ export async function runDebate(
       round++
     ) {
       await storage.updateSession(session.id, { status: "critique", currentRound: round });
-      await runCritiqueRound(session, participants, round, storage, sink);
+      // Refresh in-memory currentRound so drain places human turns in this round.
+      session.currentRound = round;
+      await runCritiqueRound(
+        session,
+        participants,
+        ctx,
+        round,
+        storage,
+        sink,
+        controlPlane,
+      );
 
-      const report = await runConsensusCheck(session, participants, storage, sink);
+      await drainInjectionsAndWait(session, "critique", storage, sink, controlPlane);
 
-      if (report.consensusLevel >= session.protocol.consensusThreshold) {
+      const report = await runConsensusCheck(session, participants, ctx, storage, sink);
+
+      // Honor the judge's explicit "stop" recommendation even when the
+      // numeric consensusLevel sits below the threshold — this is how the
+      // resilience stub signals "I couldn't produce a real report, don't
+      // burn another round". Without this check the stub's 0.5 level falls
+      // through to another critique round.
+      if (
+        report.recommendation === "proceed_to_synthesis" ||
+        report.consensusLevel >= session.protocol.consensusThreshold
+      ) {
         consensusReached = true;
       } else if (
         report.recommendation === "another_round" &&
@@ -252,14 +352,31 @@ export async function runDebate(
           status: "adaptive_round",
           currentRound: round + 1,
         });
-        await runAdaptiveRound(session, participants, report, storage, sink);
+        session.currentRound = round + 1;
+        await drainInjectionsAndWait(
+          session,
+          "adaptive_round",
+          storage,
+          sink,
+          controlPlane,
+        );
+        await runAdaptiveRound(
+          session,
+          participants,
+          ctx,
+          report,
+          storage,
+          sink,
+          controlPlane,
+        );
         break;
       }
     }
 
     // Phase 5: synthesis
+    await drainInjectionsAndWait(session, "synthesis", storage, sink, controlPlane);
     await storage.updateSession(session.id, { status: "synthesis" });
-    await runSynthesis(session, storage, sink);
+    await runSynthesis(session, participants, ctx, storage, sink);
 
     await storage.updateSession(session.id, {
       status: "completed",
@@ -280,6 +397,7 @@ export async function runDebate(
 async function runAgentTurn(params: {
   session: Session;
   participant: Participant;
+  ctx: ProviderContext;
   phase: Phase;
   roundNumber: number;
   turnIndex: number;
@@ -287,11 +405,16 @@ async function runAgentTurn(params: {
   storage: Storage;
   sink: StreamSink;
 }): Promise<Turn> {
-  const { session, participant, phase, roundNumber, turnIndex, visibleHistory, storage, sink } =
+  const { session, participant, ctx, phase, roundNumber, turnIndex, visibleHistory, storage, sink } =
     params;
 
   const persona = await loadPersona(participant.personaId);
-  const model = resolveModel(persona.model);
+  // Apply per-persona model override if configured on the session, falling back
+  // to the persona's default model. This lets session creators swap models per
+  // participant without editing the persona template.
+  const overrideModel = session.participantModelOverrides?.[persona.id];
+  const modelId = overrideModel ?? persona.model;
+  const model = resolveModel(modelId, ctx);
   const tools = await buildToolset(persona.toolIds, session.id);
 
   await sink.emit({
@@ -324,6 +447,11 @@ async function runAgentTurn(params: {
     temperature: persona.temperature,
     tools,
     stopWhen: stepCountIs(5),
+    // OpenRouter returns authoritative cost (USD) in the final usage chunk
+    // when this flag is set. Harmless for non-OpenRouter providers (ignored).
+    providerOptions: {
+      openrouter: { usage: { include: true } },
+    },
     // TODO: prompt caching — set cache control on system messages to reduce costs.
   });
 
@@ -334,6 +462,10 @@ async function runAgentTurn(params: {
   }
 
   const usage = await result.usage;
+  const tokensIn = usage.inputTokens ?? 0;
+  const tokensOut = usage.outputTokens ?? 0;
+  const providerMetadata = await result.providerMetadata;
+  const costUsd = extractCostUsd(providerMetadata, modelId, tokensIn, tokensOut);
   const turn: Turn = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -345,10 +477,11 @@ async function runAgentTurn(params: {
     speakerName: persona.name,
     content: fullText,
     references: extractReferences(fullText, visibleHistory),
-    tokensIn: usage.inputTokens ?? 0,
-    tokensOut: usage.outputTokens ?? 0,
-    costUsd: 0, // TODO: compute from provider's returned cost metadata
-    model: persona.model,
+    tokensIn,
+    tokensOut,
+    costUsd,
+    // Record the actual model used (may differ from persona.model if overridden).
+    model: modelId,
     createdAt: new Date(),
   };
 
@@ -443,4 +576,85 @@ function extractReferences(text: string, history: Turn[]): string[] {
     }
   }
   return [...refs];
+}
+
+// ─── Phase-boundary control point ───────────────────────────────────────────
+/**
+ * Called between every phase. Appends any queued human injections as human
+ * Turns visible to subsequent speakers, then blocks if pause was requested.
+ * After a wait, re-drains — a user can submit a note *during* the pause and
+ * we want it visible in the very next phase.
+ */
+async function drainInjectionsAndWait(
+  session: Session,
+  atPhase: Phase,
+  storage: Storage,
+  sink: StreamSink,
+  controlPlane: ControlPlane,
+): Promise<void> {
+  await drainOnce(session, atPhase, storage, sink, controlPlane);
+
+  if (await controlPlane.isPauseRequested(session.id)) {
+    await controlPlane.markPausedAtPhase(session.id, atPhase);
+    await storage.updateSession(session.id, { status: "paused" });
+    await sink.emit({
+      type: "human_injection_request",
+      prompt:
+        "Deliberation paused. Add a note to steer the next phase, or resume without interjecting.",
+    });
+
+    // Once waitIfPauseRequested returns, the pause is resolved either way
+    // (a resume signal arrived, or the flag was cleared out-of-band, or the
+    // timeout expired). Unconditionally restore the phase status and re-drain
+    // so any note submitted during the pause window lands in the next phase.
+    await controlPlane.waitIfPauseRequested(session.id);
+    await storage.updateSession(session.id, { status: atPhase });
+    await drainOnce(session, atPhase, storage, sink, controlPlane);
+  }
+}
+
+async function drainOnce(
+  session: Session,
+  atPhase: Phase,
+  storage: Storage,
+  sink: StreamSink,
+  controlPlane: ControlPlane,
+): Promise<void> {
+  const injections = await controlPlane.drainInjections(session.id);
+  if (injections.length === 0) return;
+
+  const transcript = await storage.getTranscript(session.id);
+  let turnIndex = transcript.filter(
+    (t) => t.phase === atPhase && t.roundNumber === session.currentRound,
+  ).length;
+
+  for (const injection of injections) {
+    await sink.emit({
+      type: "turn_start",
+      speakerId: injection.createdBy,
+      speakerName: injection.createdByName,
+      phase: atPhase,
+    });
+
+    const turn: Turn = {
+      id: crypto.randomUUID(),
+      sessionId: session.id,
+      phase: atPhase,
+      roundNumber: session.currentRound,
+      turnIndex: turnIndex++,
+      speakerRole: "human",
+      speakerId: injection.createdBy,
+      speakerName: injection.createdByName,
+      content: injection.content,
+      references: [],
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: "",
+      createdAt: new Date(),
+    };
+
+    await storage.appendTurn(turn);
+    await sink.emit({ type: "turn_complete", turn });
+  }
 }

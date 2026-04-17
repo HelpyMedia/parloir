@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
@@ -18,14 +18,72 @@ import { TopBar } from "./TopBar";
 export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const state = useSessionStream(bundle);
   const insights = deriveInsights(state);
-  const [paused, setPaused] = useState(false);
+  const [pausePending, setPausePending] = useState(false);
+  const [resumePending, setResumePending] = useState(false);
 
+  const sessionId = state.sessionId;
+  const isPaused =
+    state.phase === "paused" || state.humanInjectionPrompt !== null;
   const activeSpeakerId = state.live?.speakerId ?? null;
-  const isSynthesisDone = state.phase === "completed" && state.synthesis !== null;
-  const showPausedOverlay = paused || state.humanInjectionPrompt !== null;
+  const isSynthesisDone =
+    state.phase === "completed" && state.synthesis !== null;
+
+  const requestPause = useCallback(async () => {
+    if (pausePending || isPaused) return;
+    setPausePending(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/pause`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("pause failed", await res.text());
+        setPausePending(false);
+      }
+      // Otherwise leave pending=true until the effect below sees isPaused flip,
+      // so the spinner stays up through the "waiting for phase boundary" gap.
+    } catch (e) {
+      console.error("pause failed", e);
+      setPausePending(false);
+    }
+  }, [pausePending, isPaused, sessionId]);
+
+  useEffect(() => {
+    if (isPaused) setPausePending(false);
+  }, [isPaused]);
+
+  const requestResume = useCallback(async () => {
+    if (resumePending) return;
+    setResumePending(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/resume`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("resume failed", await res.text());
+      }
+    } finally {
+      setResumePending(false);
+    }
+  }, [resumePending, sessionId]);
+
+  const submitInjection = useCallback(
+    async (content: string) => {
+      const res = await fetch(`/api/sessions/${sessionId}/inject`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        console.error("inject failed", await res.text());
+        return;
+      }
+      await requestResume();
+    },
+    [sessionId, requestResume],
+  );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
+    <div className="min-h-dvh bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
       <TopBar
         session={state.session}
         phase={state.phase}
@@ -33,7 +91,6 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         totalCostUsd={state.totalCostUsd}
       />
       <PhaseBar phase={state.phase} />
-
       {state.error && (
         <div
           role="alert"
@@ -44,31 +101,30 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
       )}
 
       {isSynthesisDone && state.synthesis ? (
-        <main className="flex-1 overflow-y-auto">
+        <main>
           <SynthesisPanel artifact={state.synthesis} />
         </main>
       ) : (
         <>
-          <div className="relative flex min-h-[380px]">
+          <div className="relative flex items-start border-b border-[var(--color-border-subtle)]">
             <PersonaRail
               personas={state.personas}
               personaState={state.personaState}
             />
-            <div className="relative flex flex-1 items-stretch">
+            <div className="relative flex flex-1 items-stretch self-start">
               <CouncilStage
                 personas={state.personas}
                 personaState={state.personaState}
                 activeSpeakerId={activeSpeakerId}
-                paused={showPausedOverlay}
+                paused={isPaused}
+                live={state.live}
               />
               <AnimatePresence>
-                {showPausedOverlay && (
+                {isPaused && (
                   <PausedOverlay
                     prompt={state.humanInjectionPrompt}
-                    onSubmit={() => {
-                      setPaused(false);
-                    }}
-                    onCancel={() => setPaused(false)}
+                    onSubmit={submitInjection}
+                    onCancel={requestResume}
                   />
                 )}
               </AnimatePresence>
@@ -85,11 +141,13 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
       )}
 
       <StickyActionBar
-        phase={isSynthesisDone ? "completed" : paused ? "paused" : state.phase}
+        phase={
+          isSynthesisDone ? "completed" : isPaused ? "paused" : state.phase
+        }
         canExport={isSynthesisDone}
-        onPauseToggle={() => setPaused((p) => !p)}
-        onInterject={() => setPaused(true)}
-        onAskRound={() => setPaused(true)}
+        pausePending={pausePending}
+        onPauseToggle={isPaused ? requestResume : requestPause}
+        onAskRound={requestPause /* TODO: replace when ask-round plan ships */}
         onExport={() => {
           if (!state.synthesis) return;
           const content =
@@ -100,11 +158,24 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `parloir-session-${state.sessionId.slice(0, 8)}.md`;
+          a.download = buildExportFilename(state.session?.title, sessionId);
           a.click();
           URL.revokeObjectURL(url);
         }}
       />
     </div>
   );
+}
+
+function buildExportFilename(title: string | undefined, sessionId: string): string {
+  const shortId = sessionId.slice(0, 8);
+  const slug = (title ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+  return slug ? `parloir-${slug}-${shortId}.md` : `parloir-session-${shortId}.md`;
 }
