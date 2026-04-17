@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { getCurrentUser } from "@/lib/auth/server";
+import { GlobalNav } from "@/components/nav/GlobalNav";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -26,17 +28,25 @@ export const metadata: Metadata = {
   description: "A council of AI personas, deliberating in the open.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+  const navUser = user
+    ? { id: user.id, email: user.email, name: user.name ?? null }
+    : null;
+
   return (
     <html
       lang="en"
       className={`${fraunces.variable} ${inter.variable} ${jetbrains.variable}`}
     >
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <GlobalNav user={navUser} />
+        {children}
+      </body>
     </html>
   );
 }
