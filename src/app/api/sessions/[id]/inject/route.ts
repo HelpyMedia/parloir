@@ -14,8 +14,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 
-export const runtime = "nodejs";
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

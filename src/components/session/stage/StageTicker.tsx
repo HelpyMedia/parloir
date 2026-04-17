@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useLayoutEffect, useRef, useState } from "react";
 import { accentVar } from "@/lib/session-ui/persona-accent";
 import { stripMarkdownForTicker } from "@/lib/session-ui/strip-markdown";
 
@@ -8,7 +9,7 @@ interface Props {
   speakerId: string;
   speakerName: string;
   text: string;
-  /** Max chars of the tail to show. */
+  /** Max chars of the tail to show (stage bubble variant only). */
   limit?: number;
   /** "stage" = floating bubble over the table. "bar" = single-line inline. */
   variant?: "stage" | "bar";
@@ -28,47 +29,13 @@ export function StageTicker({
 }: Props) {
   const color = accentVar(speakerId);
   const cleaned = stripMarkdownForTicker(text);
-  const truncated = cleaned.length > limit;
-  const tail = truncated ? `…${cleaned.slice(-limit).trimStart()}` : cleaned;
 
   if (variant === "bar") {
-    return (
-      <motion.div
-        key={speakerId}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        className="flex min-w-0 flex-1 items-center gap-3"
-        aria-live="polite"
-      >
-        <span className="flex flex-none items-center gap-2">
-          <span
-            className="h-1.5 w-1.5 animate-pulse rounded-full"
-            style={{ backgroundColor: color }}
-            aria-hidden
-          />
-          <span
-            className="font-display text-[13px] leading-none tracking-tight"
-            style={{ color }}
-          >
-            {speakerName.split(" ").slice(-1)[0]}
-          </span>
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-[12px] leading-none text-[var(--color-text-muted)]"
-          style={{
-            maskImage:
-              "linear-gradient(to right, transparent 0, black 24px, black 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, transparent 0, black 24px, black 100%)",
-          }}
-        >
-          {tail || "…"}
-        </span>
-      </motion.div>
-    );
+    return <TickerBar speakerId={speakerId} speakerName={speakerName} color={color} text={cleaned} />;
   }
+
+  const truncated = cleaned.length > limit;
+  const tail = truncated ? `…${cleaned.slice(-limit).trimStart()}` : cleaned;
 
   return (
     <motion.div
@@ -106,6 +73,93 @@ export function StageTicker({
             aria-hidden
           />
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
+ * Marquee-style bar ticker. Renders the full cleaned text on a single line,
+ * translated left so the tail sits flush against the container's right edge.
+ * The translate animates on every text change, so new tokens glide in from
+ * the right instead of popping in. Once the text fits, the offset sits at 0.
+ */
+function TickerBar({
+  speakerId,
+  speakerName,
+  color,
+  text,
+}: {
+  speakerId: string;
+  speakerName: string;
+  color: string;
+  text: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [offset, setOffset] = useState(0);
+  const prevSpeakerRef = useRef(speakerId);
+
+  useLayoutEffect(() => {
+    if (!containerRef.current || !textRef.current) return;
+    const containerW = containerRef.current.offsetWidth;
+    const textW = textRef.current.scrollWidth;
+    const target = textW > containerW ? containerW - textW : 0;
+    setOffset(target);
+  }, [text]);
+
+  // Reset offset instantly when the speaker changes so the new speaker's
+  // text doesn't inherit the prior speaker's scroll position.
+  const speakerChanged = prevSpeakerRef.current !== speakerId;
+  if (speakerChanged) {
+    prevSpeakerRef.current = speakerId;
+  }
+
+  return (
+    <motion.div
+      key={speakerId}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      className="flex min-w-0 flex-1 items-center gap-3"
+      aria-live="polite"
+    >
+      <span className="flex flex-none items-center gap-2">
+        <span
+          className="h-1.5 w-1.5 animate-pulse rounded-full"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+        <span
+          className="font-display text-[13px] leading-none tracking-tight"
+          style={{ color }}
+        >
+          {speakerName.split(" ").slice(-1)[0]}
+        </span>
+      </span>
+      <div
+        ref={containerRef}
+        className="relative min-w-0 flex-1 overflow-hidden"
+        style={{
+          maskImage:
+            "linear-gradient(to right, transparent 0, black 24px, black 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 0, black 24px, black 100%)",
+        }}
+      >
+        <motion.span
+          ref={textRef}
+          animate={{ x: speakerChanged ? 0 : offset }}
+          initial={false}
+          transition={{
+            duration: 0.55,
+            ease: [0.25, 0.1, 0.25, 1],
+          }}
+          className="inline-block whitespace-nowrap font-mono text-[12px] leading-none text-[var(--color-text-muted)]"
+        >
+          {text || "…"}
+        </motion.span>
       </div>
     </motion.div>
   );

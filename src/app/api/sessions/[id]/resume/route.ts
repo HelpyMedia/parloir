@@ -14,8 +14,6 @@ import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { inngest } from "@/lib/inngest/client";
 
-export const runtime = "nodejs";
-
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
