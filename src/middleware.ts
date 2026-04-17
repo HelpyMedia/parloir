@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
 const PROTECTED_PAGES = ["/sessions", "/settings"];
-const PROTECTED_API = ["/api/sessions", "/api/credentials"];
+const PROTECTED_API = ["/api/sessions", "/api/credentials", "/api/providers"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -26,5 +26,11 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/sessions/:path*", "/settings/:path*", "/api/sessions/:path*", "/api/credentials/:path*"],
+  matcher: [
+    "/sessions/:path*",
+    "/settings/:path*",
+    "/api/sessions/:path*",
+    "/api/credentials/:path*",
+    "/api/providers/:path*",
+  ],
 };
