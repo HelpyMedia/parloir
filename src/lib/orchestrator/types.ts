@@ -91,6 +91,16 @@ export interface Participant {
   silenced: boolean;
 }
 
+/**
+ * Per-request provider credentials + local server URLs, loaded once per
+ * debate run from the authenticated user's configured settings. Threaded
+ * through the orchestrator so `resolveModel` can use the right keys.
+ */
+export interface ProviderContext {
+  cloud: Partial<Record<"openrouter" | "anthropic" | "openai" | "google", string>>;
+  local: Partial<Record<"ollama" | "lmstudio", string>>;
+}
+
 /** Protocol configuration — per session. */
 export interface ProtocolConfig {
   /** Max number of critique rounds after the opening. Hard cap on cost. */
@@ -138,6 +148,11 @@ export interface Session {
   pauseRequestedAt: Date | null;
   /** The phase the session was in when pause was requested — resume target. */
   pausedAtPhase: Phase | null;
+  /**
+   * Per-persona model override, keyed by personaId. Falls back to persona.model
+   * if absent. Set by the session creator in the New Session form.
+   */
+  participantModelOverrides: Record<string, string>;
 }
 
 /** The judge's structured output after a consensus check. */
