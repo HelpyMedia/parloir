@@ -7,7 +7,12 @@
 - `src/components/session-new/NewSessionForm.tsx`
 - `src/components/session-new/PanelPresetPicker.tsx` (to be replaced)
 - `src/components/session-new/QuestionInput.tsx`
-- `src/lib/providers/defaults.ts` (pattern to mirror)
+- `src/components/session-new/ModelPickerInline.tsx` (consumer of normalized override IDs)
+- `src/components/session-new/DepthSelector.tsx` (`quick | standard | deep` enum)
+- `src/lib/providers/defaults.ts` (pattern to mirror, new `pickClassifierModelChain`)
+- `src/lib/providers/registry.ts` (`resolveModel` precedence mirrored by normalizer)
+- `src/lib/providers/catalog.ts` (curated model IDs for allowed-overrides list)
+- `src/lib/orchestrator/try-generate-object.ts` (already logs chain failures)
 - `personas/templates/*.json` (source of roster)
 
 ## Goal
@@ -41,7 +46,7 @@ Instant apply with coordinated transitions:
 1. **Title** — if empty, types in character-by-character over ~400ms (CSS-driven, no JS typewriter). If the user already typed a title, it is **not** overwritten.
 2. **Persona checklist** — persona rows animate a 150ms fade on check/uncheck transitions. The form's `selectedIds` is diffed with the recommendation; rows entering/leaving the selection glow with `--color-spot-halo` for 600ms.
 3. **Model overrides** — dropdowns cross-fade their displayed label (opacity 0 → 1 over 200ms) as the new value is committed.
-4. **Depth selector** — the active pill slides to the new value using the same 150ms transition existing selectors use.
+4. **Depth selector** — the active pill's color/border transitions to the new value using `DepthSelector`'s existing `transition-colors` rule (~150ms). No new motion primitives are introduced — call this out so nobody plans a slide animation that doesn't exist in the component today. If a sliding-pill effect is wanted later, it is explicit new UI work on `DepthSelector` itself and out of scope here.
 
 All four start within the same `requestAnimationFrame` so it reads as one action.
 
@@ -51,7 +56,9 @@ The `Suggested ✓ — undo` chip captures a snapshot of the pre-suggestion stat
 
 ### Failure
 
-Silent. On classifier failure (all models in chain failed, or API error) the button reverts to `Suggest a panel` and a single `console.warn` is emitted server-side. No toast, no inline error — the brief is explicit that the form must stay usable. The button remains available for retry.
+Silent. On classifier failure (all models in chain failed, or API error) the button reverts to `Suggest a panel`. No toast, no inline error — the brief is explicit that the form must stay usable. The button remains available for retry.
+
+Server logging is delegated to `tryGenerateObject`, which already emits a single `console.warn` with the full per-model error list on total chain failure (`src/lib/orchestrator/try-generate-object.ts:51`). The endpoint adds no extra `console.warn` on that path to avoid duplicate noise. The endpoint DOES log (one `console.warn`) on its own paths that `tryGenerateObject` does not reach — empty available-provider chain, post-filter persona count < 2, post-filter override normalization failures that cross a threshold worth noting — so operators can tell "LLM failed" apart from "our validation rejected the result."
 
 ## Architecture
 
@@ -61,7 +68,7 @@ Silent. On classifier failure (all models in chain failed, or API error) the but
 
 - Auth: `requireUser()` — same gate as other session endpoints.
 - Request body: `{ question: string }` — title, if any, is ignored; the recommender owns title suggestion.
-- Response (success): `{ title: string, personaIds: string[], overrides: Record<string,string>, depth: "short"|"standard"|"deep" }`.
+- Response (success): `{ title: string, personaIds: string[], overrides: Record<string,string>, depth: "quick"|"standard"|"deep" }`. The `depth` enum matches `DEPTH_ROUNDS` in `src/components/session-new/DepthSelector.tsx:3` exactly so `NewSessionForm` can pass the value straight to state (`setDepth`) without a translation layer.
 - Response (total failure): `204 No Content`. Client treats as silent failure.
 - Validation: `question.trim().length` in `[10, 4000]` — mirrors `canStart`. Out-of-range returns `400`.
 - Rate limiting: none in v1. Classifier runs are pennies each via the cheap judge chain; revisit if abused.
@@ -70,7 +77,7 @@ Silent. On classifier failure (all models in chain failed, or API error) the but
 
 `src/lib/recommender/panel.ts` — exports `recommendPanel({ question, personas, ctx })`.
 
-Uses `tryGenerateObject` against a model chain built by a new `pickClassifierModelChain(ctx, personaModels)` helper added to `src/lib/providers/defaults.ts`. The preference order is the same as the judge chain — cheap, fast, capable of structured output:
+Uses `tryGenerateObject` against a model chain built by a new `pickClassifierModelChain(ctx)` helper added to `src/lib/providers/defaults.ts`. The preference order is the same as the judge chain — cheap, fast, capable of structured output:
 
 ```ts
 const CLASSIFIER_PREFERENCES = [
@@ -81,7 +88,12 @@ const CLASSIFIER_PREFERENCES = [
 ];
 ```
 
-Falls back to the first persona's default model as a last resort (same pattern as `buildChain`). If the chain is empty or every candidate fails, the helper returns `null` and the endpoint responds `204`.
+**Chain composition differs from `pickJudgeModelChain` on purpose.** The judge chain appends persona models as a last-resort fallback because, at judge time, those models are already known-good — the debate already successfully resolved them to start. At recommender time nothing has started, and every current template persona defaults to `anthropic/claude-opus-4.6` (see `personas/templates/*.json`). For a Google-only, OpenAI-only, or local-only user, appending that to the chain just produces extra failed attempts and latency. So:
+
+- The classifier chain is built **only** from `CLASSIFIER_PREFERENCES` whose provider is in `availableProviders(ctx)`.
+- No persona-default fallback is appended.
+- If the resulting chain is empty (e.g., the user is local-only with no cloud keys), the endpoint returns `204` **without calling the LLM at all**. This is one of the endpoint's own log-worthy paths — emit a single `console.warn` as described under "Failure."
+- If the chain is non-empty but every candidate fails, `tryGenerateObject` itself logs once and returns `null`; the endpoint responds `204` silently.
 
 ### Zod schema for classifier output
 
@@ -92,9 +104,9 @@ const RecommendationSchema = z.object({
     "2 to 5 persona IDs from the provided roster. Order is seat order."
   ),
   overrides: z.record(z.string(), z.string()).describe(
-    "Map of personaId -> modelId. Only include entries that differ from the persona's default model. Empty object is valid."
+    "Map of personaId -> modelId. Only include entries that differ from the persona's default model. Empty object is valid. Values must be drawn from the allowed-overrides list supplied in the prompt."
   ),
-  depth: z.enum(["short", "standard", "deep"]),
+  depth: z.enum(["quick", "standard", "deep"]),
   rationale: z.string().describe("One sentence explanation, for logging only."),
 });
 ```
@@ -107,12 +119,42 @@ System prompt tells the model:
 - Its job is to configure a panel, not to answer the question.
 - Hand-describes the roster by joining `persona.id`, `persona.role`, and `persona.tags` into a compact table the model can cite by id.
 - Emits the recommended shape per the Zod schema.
-- Depth heuristic — short = factual/quick; standard = comparison; deep = strategy/architecture.
-- Override heuristic — only suggest an override when a persona's role meaningfully benefits from a different model than its default (e.g. domain expert on a legal question → bump to the heaviest available model; pragmatic operator → leave default). Must still be resolvable against the provided `ProviderContext` — the server filters unresolvable overrides before returning.
+- Depth heuristic — `quick` = factual; `standard` = comparison; `deep` = strategy/architecture.
+- Override heuristic — only suggest an override when a persona's role meaningfully benefits from a different model than its default (e.g. domain expert on a legal question → bump to the heaviest available model).
+- **Allowed-overrides list (authoritative).** The prompt includes an explicit list of model IDs the classifier is permitted to use as override values. This list is assembled server-side from (a) the curated catalog (`src/lib/providers/catalog.ts`) for each cloud provider whose key is in `ctx`, (b) a small hand-picked set of OpenRouter IDs if OpenRouter is in `ctx`, and (c) local IDs (Ollama/LM Studio) only if the user has those endpoints configured. For the v1 scope we punt on live-enumerating local models into the classifier prompt — the override heuristic is biased toward cloud personas anyway. Values outside this list are rejected at validation time (see next section).
 
-### Override safety net
+### Override pipeline
 
-After the classifier returns, the endpoint validates each suggested override by calling `resolveModel(modelId, ctx)` inside a try/catch. Any override that fails resolution is dropped from the response. A suggestion with all overrides dropped still succeeds — the form will just use persona defaults.
+Three stages, all server-side:
+
+1. **Pre-filter at prompt time** — the classifier only sees model IDs the current user can use, so it cannot hallucinate an OpenAI-only ID for an Anthropic-only user.
+2. **Post-filter (allowlist check)** — each returned `overrides[personaId]` must appear in the allowed-overrides list built in step 1. Values outside the list are dropped.
+3. **Prefix normalization.** The real source of breakage flagged in review: `ModelPickerInline.tsx:19` derives the picker's active provider from the *literal* prefix of the modelId, and `ModelPickerInline.tsx:66` auto-snaps the value to the active provider's first model whenever `providerOf(current) !== provider`. That means a server-approved `anthropic/claude-haiku-4-5` override for a user with no Anthropic key (but OpenRouter) will mount with `provider = "openrouter"`, the effect will fire, and the picker will immediately overwrite it.
+    So every override must be rewritten to the prefix matching whichever provider `resolveModel` would actually route it through for this user, using a new helper:
+
+    ```ts
+    // src/lib/providers/normalize.ts
+    export function normalizeModelIdForPicker(
+      modelId: string,
+      ctx: ProviderContext,
+    ): string | null;
+    ```
+
+    Logic (mirrors `resolveModel` precedence without constructing a `LanguageModel`):
+
+    - If `modelId` starts with `openrouter/` and ctx has openrouter → return as-is; else null.
+    - If `modelId` starts with `ollama/` / `lmstudio/` and ctx has that local endpoint → return as-is; else null.
+    - If `modelId` starts with a native prefix (`anthropic/` / `openai/` / `google/`):
+      - If ctx has that native key → return as-is.
+      - Else if ctx has openrouter → return `"openrouter/" + modelId`.
+      - Else null.
+    - Else (unknown prefix):
+      - If ctx has openrouter → return as-is (OpenRouter passthrough, same as `resolveModel`).
+      - Else null.
+
+    Any override where the helper returns `null` is dropped before responding. A suggestion with all overrides dropped still succeeds — the form uses persona defaults.
+
+    This helper also lets the classifier prompt include natively-prefixed IDs in its allowed-overrides list when the backing is actually OpenRouter — we can pre-normalize the list before handing it to the classifier, so the model is guided toward writing IDs that will survive client mount.
 
 ### Client wiring
 
@@ -158,10 +200,12 @@ clicks "Suggest a panel"   ─────► POST /api/sessions/recommend-panel
 | User not authenticated | `401` from middleware — same as any other gated API |
 | `question` too short / too long | `400` with the same JSON error shape as `/api/sessions` |
 | No provider context (user connected nothing) | `204` — UI stays idle. Cannot happen today because the page already gates on `hasAny`. |
-| All classifier models fail | `204`, server `console.warn` with the error list |
-| Classifier returns invalid persona IDs | Endpoint filters them; if result has <2 valid IDs, responds `204` |
-| Classifier returns unresolvable override | Endpoint drops the override, keeps the rest |
-| Network error on client | `catch` treats as `204` — silent no-op, button resets |
+| Classifier chain empty (no available-provider matches) | `204`, one endpoint-level `console.warn`. LLM is not called. |
+| All classifier models fail | `204`. `tryGenerateObject` already logged once; endpoint adds no second warn. |
+| Classifier returns invalid persona IDs | Endpoint filters them; if result has <2 valid IDs, responds `204` with one endpoint-level `console.warn`. |
+| Classifier returns override outside allowed list | Dropped silently (expected to be rare — allowed list is in the prompt). |
+| Classifier returns override that fails `normalizeModelIdForPicker` | Dropped silently. |
+| Network error on client | `catch` treats as `204` — silent no-op, button resets. |
 
 ## Testing
 
