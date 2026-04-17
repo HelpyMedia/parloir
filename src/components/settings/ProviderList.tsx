@@ -53,6 +53,11 @@ export function ProviderList({ cloud, local }: Props) {
         </div>
       </section>
 
+      <p className="text-xs text-[var(--color-text-muted)]">
+        Cloud providers also serve as fallback for consensus and synthesis if
+        your local model can&apos;t produce structured JSON.
+      </p>
+
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-lg text-[var(--color-text-primary)]">Local servers</h2>
         <div className="flex flex-col gap-2">

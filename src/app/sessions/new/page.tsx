@@ -2,7 +2,12 @@ import Link from "next/link";
 import { NewSessionForm } from "@/components/session-new/NewSessionForm";
 import { listTemplatePersonas } from "@/lib/personas";
 import { requireUser } from "@/lib/auth/server";
-import { listConnectedProviders, listLocalUrls } from "@/lib/credentials/service";
+import {
+  CLOUD_PROVIDERS,
+  LOCAL_PROVIDERS,
+  listConnectedProviders,
+  listLocalUrls,
+} from "@/lib/credentials/service";
 
 export const dynamic = "force-dynamic";
 
@@ -41,5 +46,17 @@ export default async function NewSessionPage() {
     );
   }
 
-  return <NewSessionForm personas={personas} />;
+  const connectedProviders = [
+    ...CLOUD_PROVIDERS.filter((p) => cloud.includes(p)),
+    ...LOCAL_PROVIDERS.filter((p) => Boolean(local[p])),
+  ];
+  const hasCloudProvider = cloud.length > 0;
+
+  return (
+    <NewSessionForm
+      personas={personas}
+      connectedProviders={connectedProviders}
+      hasCloudProvider={hasCloudProvider}
+    />
+  );
 }

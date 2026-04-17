@@ -5,15 +5,18 @@
  * This is a CHEAP model (Haiku or similar). Its job is narrow:
  * classify agreement/dissent, rank arguments, recommend next action.
  *
+ * Resilience: callers pass a chain of candidate models; if every one
+ * fails to produce structured output, we return a neutral stub report
+ * so the debate proceeds to synthesis rather than crashing.
+ *
  * Research note: keep the judge separate from the debaters. A debater
  * doubling as judge introduces bias toward its own position. Also, the
  * judge's output is structured — not free-form — to prevent it from
  * drifting into the debate itself.
  */
 
-import { generateObject } from "ai";
 import { z } from "zod";
-import { resolveModel } from "@/lib/providers/registry";
+import { tryGenerateObject } from "./try-generate-object";
 import type { Turn, Participant, ConsensusReport, ProviderContext } from "./types";
 
 // Anthropic's structured-output validator rejects JSON Schema's minimum/maximum
@@ -47,10 +50,10 @@ export async function evaluateConsensus(params: {
   question: string;
   transcript: Turn[];
   participants: Participant[];
-  judgeModel: string;
+  judgeModelChain: string[];
   ctx: ProviderContext;
 }): Promise<ConsensusReport> {
-  const { question, transcript, participants, judgeModel, ctx } = params;
+  const { question, transcript, participants, judgeModelChain, ctx } = params;
 
   const participantList = participants
     .map((p) => `- ${p.personaId} (seat ${p.seatIndex})`)
@@ -63,10 +66,11 @@ export async function evaluateConsensus(params: {
     )
     .join("\n\n");
 
-  const result = await generateObject({
-    model: resolveModel(judgeModel, ctx),
+  const result = await tryGenerateObject({
+    modelChain: judgeModelChain,
+    ctx,
     schema: ConsensusSchema,
-    temperature: 0.2, // low — we want consistent classification, not creativity
+    temperature: 0.2,
     messages: [
       {
         role: "system",
@@ -91,6 +95,26 @@ export async function evaluateConsensus(params: {
       },
     ],
   });
+
+  if (!result) {
+    return {
+      consensusLevel: 0.5,
+      agreeingParticipants: [],
+      dissentingParticipants: [],
+      majorityPosition:
+        "Judge model failed to produce a structured consensus report; proceeding without ranking.",
+      minorityPositions: [],
+      unresolvedQuestions: [],
+      participantRanking: participants.map((p) => ({
+        personaId: p.personaId,
+        score: 0.5,
+      })),
+      silencedForNextRound: [],
+      recommendation: "proceed_to_synthesis",
+      reasoning:
+        "Fallback: the consensus judge could not produce structured output with any configured model. The debate continues to synthesis on the available transcript.",
+    };
+  }
 
   return {
     ...result.object,

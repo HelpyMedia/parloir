@@ -125,8 +125,8 @@ export const DEFAULT_PROTOCOL: ProtocolConfig = {
   enableAdaptiveRound: true,
   hideConfidenceScores: true,
   requireNovelty: true,
-  judgeModel: "anthropic/claude-haiku-4.5",
-  synthesizerModel: "anthropic/claude-opus-4.6",
+  judgeModel: "anthropic/claude-haiku-4-5",
+  synthesizerModel: "anthropic/claude-opus-4-7",
 };
 
 /** The session as a whole. */

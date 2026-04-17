@@ -9,11 +9,12 @@ interface Props {
   personas: Persona[];
   selected: string[];
   overrides: Record<string, string>;
+  connectedProviders: string[];
   onToggle: (personaId: string) => void;
   onOverride: (personaId: string, modelId: string) => void;
 }
 
-export function PersonaChecklist({ personas, selected, overrides, onToggle, onOverride }: Props) {
+export function PersonaChecklist({ personas, selected, overrides, connectedProviders, onToggle, onOverride }: Props) {
   return (
     <fieldset className="space-y-2">
       <legend className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
@@ -61,6 +62,7 @@ export function PersonaChecklist({ personas, selected, overrides, onToggle, onOv
                       personaId={p.id}
                       defaultModel={p.model}
                       override={overrides[p.id]}
+                      connectedProviders={connectedProviders}
                       onChange={(modelId) => onOverride(p.id, modelId)}
                     />
                   </div>

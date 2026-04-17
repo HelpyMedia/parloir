@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { Persona } from "@/lib/orchestrator/types";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
+import { LocalOnlyReliabilityNote } from "./LocalOnlyReliabilityNote";
 import { ModeSelector, type Mode } from "./ModeSelector";
 import { PanelPresetPicker } from "./PanelPresetPicker";
 import { PersonaChecklist } from "./PersonaChecklist";
@@ -12,9 +13,11 @@ import { StartButton } from "./StartButton";
 
 interface Props {
   personas: Persona[];
+  connectedProviders: string[];
+  hasCloudProvider: boolean;
 }
 
-export function NewSessionForm({ personas }: Props) {
+export function NewSessionForm({ personas, connectedProviders, hasCloudProvider }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -118,6 +121,7 @@ export function NewSessionForm({ personas }: Props) {
         personas={personas}
         selected={selectedIds}
         overrides={overrides}
+        connectedProviders={connectedProviders}
         onToggle={toggle}
         onOverride={setOverride}
       />
@@ -130,6 +134,8 @@ export function NewSessionForm({ personas }: Props) {
           {error}
         </div>
       )}
+
+      {!hasCloudProvider && <LocalOnlyReliabilityNote />}
 
       <div className="flex items-center justify-end gap-4">
         {!canStart && (

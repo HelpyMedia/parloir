@@ -18,6 +18,10 @@
 
 import { streamText, stepCountIs } from "ai";
 import { resolveModel } from "@/lib/providers/registry";
+import {
+  pickJudgeModelChain,
+  pickSynthesizerModelChain,
+} from "@/lib/providers/defaults";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
 import { evaluateConsensus } from "./consensus";
@@ -154,6 +158,24 @@ export async function runCritiqueRound(
   return results;
 }
 
+/**
+ * Resolve the actual model ID each participant uses, honoring per-session
+ * overrides. Matches the resolution in runAgentTurn so the judge/synth
+ * fallback chain sees the same "known-good" list the debate ran on.
+ */
+async function resolveParticipantModels(
+  session: Session,
+  participants: Participant[],
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const p of participants) {
+    const persona = await loadPersona(p.personaId);
+    const override = session.participantModelOverrides?.[persona.id];
+    out.push(override ?? persona.model);
+  }
+  return out;
+}
+
 // ─── Phase 3: Consensus check (judge agent) ─────────────────────────────────
 export async function runConsensusCheck(
   session: Session,
@@ -169,11 +191,17 @@ export async function runConsensusCheck(
   });
 
   const transcript = await storage.getTranscript(session.id);
+  const personaModels = await resolveParticipantModels(session, participants);
+  const judgeModelChain = pickJudgeModelChain(
+    session.protocol.judgeModel,
+    ctx,
+    personaModels,
+  );
   const report = await evaluateConsensus({
     question: session.question,
     transcript,
     participants,
-    judgeModel: session.protocol.judgeModel,
+    judgeModelChain,
     ctx,
   });
 
@@ -235,6 +263,7 @@ export async function runAdaptiveRound(
 // ─── Phase 5: Synthesis (secretary) ─────────────────────────────────────────
 export async function runSynthesis(
   session: Session,
+  participants: Participant[],
   ctx: ProviderContext,
   storage: Storage,
   sink: StreamSink,
@@ -242,10 +271,16 @@ export async function runSynthesis(
   await sink.emit({ type: "phase_enter", phase: "synthesis", round: session.currentRound });
 
   const transcript = await storage.getTranscript(session.id);
+  const personaModels = await resolveParticipantModels(session, participants);
+  const synthesizerModelChain = pickSynthesizerModelChain(
+    session.protocol.synthesizerModel,
+    ctx,
+    personaModels,
+  );
   const artifact = await synthesize({
     session,
     transcript,
-    synthesizerModel: session.protocol.synthesizerModel,
+    synthesizerModelChain,
     ctx,
     sink,
   });
@@ -333,7 +368,7 @@ export async function runDebate(
     // Phase 5: synthesis
     await drainInjectionsAndWait(session, "synthesis", storage, sink, controlPlane);
     await storage.updateSession(session.id, { status: "synthesis" });
-    await runSynthesis(session, ctx, storage, sink);
+    await runSynthesis(session, participants, ctx, storage, sink);
 
     await storage.updateSession(session.id, {
       status: "completed",
