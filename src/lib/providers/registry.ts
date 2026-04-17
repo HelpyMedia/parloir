@@ -1,18 +1,21 @@
 /**
- * Provider registry.
+ * Provider registry — per-request.
  *
- * Resolves a model ID string like "anthropic/claude-opus-4.6" to a concrete
- * Vercel AI SDK LanguageModel instance. Precedence rules:
+ * Resolves a model ID like "anthropic/claude-opus-4.6" to a concrete
+ * Vercel AI SDK LanguageModel. Credentials are supplied by a `ProviderContext`
+ * (loaded per-debate from the authenticated user's stored keys), so each
+ * session can use a different set of keys without process-wide singletons.
  *
- *   1. If the model's native provider has a direct API key set, use it.
- *      (Lower latency, sometimes cheaper, always more reliable.)
- *   2. Fall back to OpenRouter.
- *   3. "ollama/*" and "lmstudio/*" IDs resolve to local endpoints.
- *   4. Any "/vllm/*" or custom prefix maps to VLLM_BASE_URL (OpenAI-compatible).
+ * Precedence (matches pre-BYOK behavior):
+ *   1. Explicit prefixes (`openrouter/`, `ollama/`, `lmstudio/`, `vllm/`)
+ *      force that provider.
+ *   2. Native prefixes (`anthropic/`, `openai/`, `google/`) prefer the direct
+ *      SDK if the user has a key for it, otherwise fall back to OpenRouter.
+ *   3. Unknown prefixes default to OpenRouter.
  *
- * The unified model ID format means personas can declare "anthropic/claude-opus-4.6"
- * and the registry picks the best route at runtime. Swap routes without
- * touching persona configs.
+ * For local development, `PARLOIR_DEV_INHERIT_ENV=1` restores the old
+ * process.env-based resolution so single-user dev instances keep working
+ * while BYOK is wired up. Remove the shim once all callers pass a context.
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -21,113 +24,131 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { LanguageModel } from "ai";
+import type { ProviderContext } from "@/lib/orchestrator/types";
 
-// Lazy-init providers — only construct if API keys are present.
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
-
-const openai = process.env.OPENAI_API_KEY
-  ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
-
-const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
-  : null;
-
-const openrouter = process.env.OPENROUTER_API_KEY
-  ? createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
-  : null;
-
-const ollama = createOllama({
-  baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/api",
-});
-
-// LM Studio is OpenAI-compatible — reuse the OpenAI provider with a custom base URL.
-const lmstudio = createOpenAI({
-  apiKey: "lm-studio", // LM Studio ignores the key but the SDK requires one
-  baseURL: process.env.LMSTUDIO_BASE_URL ?? "http://localhost:1234/v1",
-});
-
-const vllm = process.env.VLLM_BASE_URL
-  ? createOpenAI({
-      apiKey: process.env.VLLM_API_KEY ?? "vllm",
-      baseURL: process.env.VLLM_BASE_URL,
-    })
-  : null;
+function devInheritsEnv(): boolean {
+  return process.env.PARLOIR_DEV_INHERIT_ENV === "1";
+}
 
 /**
- * Resolve a model ID to a LanguageModel.
- *
- * Format: "provider/model[:variant]"
- * Examples:
- *   "anthropic/claude-opus-4.6"       → direct Anthropic if key set, else OpenRouter
- *   "openai/gpt-5.4"                  → direct OpenAI if key set, else OpenRouter
- *   "openrouter/anthropic/claude-..."  → forced OpenRouter
- *   "ollama/llama3.2"                  → local Ollama
- *   "lmstudio/mistral-7b"              → local LM Studio
- *   "vllm/meta-llama/Llama-3-70B"      → custom vLLM endpoint
+ * Build a context from process.env for dev/single-user mode. Only honored
+ * when `PARLOIR_DEV_INHERIT_ENV=1`. Never returns user-specific state.
  */
-export function resolveModel(modelId: string): LanguageModel {
-  // Explicit provider prefixes first
+function envFallbackContext(): ProviderContext {
+  const cloud: ProviderContext["cloud"] = {};
+  if (process.env.ANTHROPIC_API_KEY) cloud.anthropic = process.env.ANTHROPIC_API_KEY;
+  if (process.env.OPENAI_API_KEY) cloud.openai = process.env.OPENAI_API_KEY;
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) cloud.google = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (process.env.OPENROUTER_API_KEY) cloud.openrouter = process.env.OPENROUTER_API_KEY;
+  const local: ProviderContext["local"] = {};
+  if (process.env.OLLAMA_BASE_URL) local.ollama = process.env.OLLAMA_BASE_URL;
+  if (process.env.LMSTUDIO_BASE_URL) local.lmstudio = process.env.LMSTUDIO_BASE_URL;
+  return { cloud, local };
+}
+
+function effectiveContext(ctx: ProviderContext): ProviderContext {
+  const hasAnything =
+    Object.keys(ctx.cloud).length > 0 || Object.keys(ctx.local).length > 0;
+  if (!hasAnything && devInheritsEnv()) {
+    return envFallbackContext();
+  }
+  return ctx;
+}
+
+function openrouterFor(ctx: ProviderContext): ReturnType<typeof createOpenRouter> | null {
+  const key = ctx.cloud.openrouter;
+  return key ? createOpenRouter({ apiKey: key }) : null;
+}
+
+/**
+ * Resolve a model ID to a LanguageModel using the caller-supplied context.
+ * All credentials come from `ctx` — no module-level singletons.
+ */
+export function resolveModel(modelId: string, ctx: ProviderContext): LanguageModel {
+  const c = effectiveContext(ctx);
+
+  // Explicit provider prefixes first.
   if (modelId.startsWith("openrouter/")) {
-    if (!openrouter) throw new Error("OPENROUTER_API_KEY not set");
-    return openrouter(modelId.slice("openrouter/".length));
+    const or = openrouterFor(c);
+    if (!or) throw new Error("OpenRouter API key not configured for this user");
+    return or(modelId.slice("openrouter/".length));
   }
 
   if (modelId.startsWith("ollama/")) {
+    const ollama = createOllama({
+      baseURL: c.local.ollama ?? "http://localhost:11434/api",
+    });
     return ollama(modelId.slice("ollama/".length));
   }
 
   if (modelId.startsWith("lmstudio/")) {
+    const lmstudio = createOpenAI({
+      apiKey: "lm-studio", // LM Studio ignores the key
+      baseURL: c.local.lmstudio ?? "http://localhost:1234/v1",
+    });
     return lmstudio(modelId.slice("lmstudio/".length));
   }
 
   if (modelId.startsWith("vllm/")) {
-    if (!vllm) throw new Error("VLLM_BASE_URL not set");
+    // vLLM is not a v1 BYOK target; preserve env-only behavior for now.
+    const baseURL = process.env.VLLM_BASE_URL;
+    if (!baseURL) throw new Error("VLLM_BASE_URL not set");
+    const vllm = createOpenAI({
+      apiKey: process.env.VLLM_API_KEY ?? "vllm",
+      baseURL,
+    });
     return vllm(modelId.slice("vllm/".length));
   }
 
-  // Native provider prefixes — prefer direct, fall back to OpenRouter.
+  // Native prefixes — prefer direct, fall back to OpenRouter.
   if (modelId.startsWith("anthropic/")) {
     const modelName = modelId.slice("anthropic/".length);
-    if (anthropic) return anthropic(modelName);
-    if (openrouter) return openrouter(modelId);
+    if (c.cloud.anthropic) {
+      return createAnthropic({ apiKey: c.cloud.anthropic })(modelName);
+    }
+    const or = openrouterFor(c);
+    if (or) return or(modelId);
     throw new Error("No provider available for " + modelId);
   }
 
   if (modelId.startsWith("openai/")) {
     const modelName = modelId.slice("openai/".length);
-    if (openai) return openai(modelName);
-    if (openrouter) return openrouter(modelId);
+    if (c.cloud.openai) {
+      return createOpenAI({ apiKey: c.cloud.openai })(modelName);
+    }
+    const or = openrouterFor(c);
+    if (or) return or(modelId);
     throw new Error("No provider available for " + modelId);
   }
 
   if (modelId.startsWith("google/") || modelId.startsWith("google-gemini/")) {
     const modelName = modelId.split("/").slice(1).join("/");
-    if (google) return google(modelName);
-    if (openrouter) return openrouter(modelId);
+    if (c.cloud.google) {
+      return createGoogleGenerativeAI({ apiKey: c.cloud.google })(modelName);
+    }
+    const or = openrouterFor(c);
+    if (or) return or(modelId);
     throw new Error("No provider available for " + modelId);
   }
 
-  // Anything else — default to OpenRouter (it handles x-ai/, deepseek/, meta-llama/, etc.)
-  if (openrouter) return openrouter(modelId);
+  // Anything else — default to OpenRouter (handles x-ai/, deepseek/, meta-llama/, etc.)
+  const or = openrouterFor(c);
+  if (or) return or(modelId);
 
   throw new Error(
-    `Cannot resolve model "${modelId}". No matching provider configured. ` +
-      "Set OPENROUTER_API_KEY for broad access, or set provider-specific keys.",
+    `Cannot resolve model "${modelId}". Connect a provider at /settings.`,
   );
 }
 
-/** Returns the list of provider families currently configured. */
-export function availableProviders(): string[] {
+/** Returns the list of provider families available in a context. */
+export function availableProviders(ctx: ProviderContext): string[] {
+  const c = effectiveContext(ctx);
   const out: string[] = [];
-  if (anthropic) out.push("anthropic");
-  if (openai) out.push("openai");
-  if (google) out.push("google");
-  if (openrouter) out.push("openrouter");
-  if (process.env.OLLAMA_BASE_URL || true) out.push("ollama");
-  out.push("lmstudio");
-  if (vllm) out.push("vllm");
+  if (c.cloud.anthropic) out.push("anthropic");
+  if (c.cloud.openai) out.push("openai");
+  if (c.cloud.google) out.push("google");
+  if (c.cloud.openrouter) out.push("openrouter");
+  if (c.local.ollama) out.push("ollama");
+  if (c.local.lmstudio) out.push("lmstudio");
   return out;
 }

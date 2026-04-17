@@ -13,7 +13,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { resolveModel } from "@/lib/providers/registry";
-import type { Session, Turn, SynthesisArtifact } from "./types";
+import type { Session, Turn, SynthesisArtifact, ProviderContext } from "./types";
 import type { StreamSink } from "./protocol";
 
 const SynthesisSchema = z.object({
@@ -50,8 +50,9 @@ export async function synthesize(params: {
     )
     .join("\n\n");
 
+  // TODO(Task 10): pass real ProviderContext from worker
   const result = await generateObject({
-    model: resolveModel(synthesizerModel),
+    model: resolveModel(synthesizerModel, {} as ProviderContext),
     schema: SynthesisSchema,
     temperature: 0.3,
     messages: [

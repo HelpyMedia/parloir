@@ -14,7 +14,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { resolveModel } from "@/lib/providers/registry";
-import type { Turn, Participant, ConsensusReport } from "./types";
+import type { Turn, Participant, ConsensusReport, ProviderContext } from "./types";
 
 // Anthropic's structured-output validator rejects JSON Schema's minimum/maximum
 // on number fields, so we can't use z.number().min(0).max(1) here. Describe the
@@ -62,8 +62,9 @@ export async function evaluateConsensus(params: {
     )
     .join("\n\n");
 
+  // TODO(Task 10): pass real ProviderContext from worker
   const result = await generateObject({
-    model: resolveModel(judgeModel),
+    model: resolveModel(judgeModel, {} as ProviderContext),
     schema: ConsensusSchema,
     temperature: 0.2, // low — we want consistent classification, not creativity
     messages: [

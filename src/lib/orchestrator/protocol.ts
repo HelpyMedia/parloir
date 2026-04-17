@@ -31,6 +31,7 @@ import type {
   StreamEvent,
   ConsensusReport,
   SynthesisArtifact,
+  ProviderContext,
 } from "./types";
 import type { ControlPlane } from "./control";
 
@@ -351,7 +352,8 @@ async function runAgentTurn(params: {
     params;
 
   const persona = await loadPersona(participant.personaId);
-  const model = resolveModel(persona.model);
+  // TODO(Task 10): pass real ProviderContext from worker
+  const model = resolveModel(persona.model, {} as ProviderContext);
   const tools = await buildToolset(persona.toolIds, session.id);
 
   await sink.emit({
