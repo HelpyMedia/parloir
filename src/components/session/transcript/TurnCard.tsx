@@ -6,6 +6,7 @@ import { accentVar } from "@/lib/session-ui/persona-accent";
 import type { Turn } from "@/lib/orchestrator/types";
 import { ReferenceChip } from "./ReferenceChip";
 import { ToolCallChip } from "./ToolCallChip";
+import { TurnMarkdown } from "./TurnMarkdown";
 
 interface Props {
   turn: Turn;
@@ -51,14 +52,18 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
         </span>
       </header>
 
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-primary)] [max-width:72ch]">
-        {displayed}
-        {live && (
-          <span
-            className="ml-0.5 inline-block h-4 w-[2px] animate-pulse align-middle"
-            style={{ backgroundColor: color }}
-            aria-hidden
-          />
+      <div className="relative">
+        {live ? (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-primary)] [max-width:72ch]">
+            {displayed}
+            <span
+              className="ml-0.5 inline-block h-4 w-[2px] animate-pulse align-middle"
+              style={{ backgroundColor: color }}
+              aria-hidden
+            />
+          </div>
+        ) : (
+          <TurnMarkdown content={displayed} />
         )}
       </div>
 

@@ -21,6 +21,7 @@ import { resolveModel } from "@/lib/providers/registry";
 import { loadPersona } from "@/lib/personas";
 import { buildToolset } from "@/lib/tools";
 import { evaluateConsensus } from "./consensus";
+import { estimateCostUsd } from "./pricing";
 import { synthesize } from "./synthesis";
 import type {
   Session,
@@ -353,6 +354,8 @@ async function runAgentTurn(params: {
   }
 
   const usage = await result.usage;
+  const tokensIn = usage.inputTokens ?? 0;
+  const tokensOut = usage.outputTokens ?? 0;
   const turn: Turn = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -364,9 +367,9 @@ async function runAgentTurn(params: {
     speakerName: persona.name,
     content: fullText,
     references: extractReferences(fullText, visibleHistory),
-    tokensIn: usage.inputTokens ?? 0,
-    tokensOut: usage.outputTokens ?? 0,
-    costUsd: 0, // TODO: compute from provider's returned cost metadata
+    tokensIn,
+    tokensOut,
+    costUsd: estimateCostUsd(persona.model, tokensIn, tokensOut),
     model: persona.model,
     createdAt: new Date(),
   };
