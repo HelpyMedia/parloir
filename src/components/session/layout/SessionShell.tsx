@@ -5,7 +5,6 @@ import { useCallback, useState } from "react";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
-import { CollapsedStageBar } from "../stage/CollapsedStageBar";
 import { CouncilStage } from "../stage/CouncilStage";
 import { PausedOverlay } from "../paused/PausedOverlay";
 import { PersonaRail } from "../rails/PersonaRail";
@@ -76,8 +75,8 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
-      <div className="sticky top-0 z-40 bg-[var(--color-bg-chamber)]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
+      <div className="flex-none bg-[var(--color-bg-chamber)]">
         <TopBar
           session={state.session}
           phase={state.phase}
@@ -85,14 +84,6 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           totalCostUsd={state.totalCostUsd}
         />
         <PhaseBar phase={state.phase} />
-        {!isSynthesisDone && (
-          <CollapsedStageBar
-            personas={state.personas}
-            personaState={state.personaState}
-            activeSpeakerId={activeSpeakerId}
-            live={state.live}
-          />
-        )}
         {state.error && (
           <div
             role="alert"
@@ -109,7 +100,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         </main>
       ) : (
         <>
-          <div className="relative flex min-h-[380px]">
+          <div className="relative flex h-[380px] flex-none">
             <PersonaRail
               personas={state.personas}
               personaState={state.personaState}
