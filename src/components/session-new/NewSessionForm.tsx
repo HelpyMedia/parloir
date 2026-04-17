@@ -23,8 +23,12 @@ export function NewSessionForm({ personas }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(
     personas.slice(0, 3).map((p) => p.id),
   );
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setOverride = (personaId: string, modelId: string) =>
+    setOverrides((prev) => ({ ...prev, [personaId]: modelId }));
 
   const canStart = useMemo(() => {
     if (!title.trim() || title.length > 200) return false;
@@ -43,6 +47,13 @@ export function NewSessionForm({ personas }: Props) {
     setBusy(true);
     setError(null);
     try {
+      const participantOverrides: Record<string, string> = {};
+      for (const id of selectedIds) {
+        const persona = personas.find((p) => p.id === id);
+        const ov = overrides[id];
+        if (persona && ov && ov !== persona.model) participantOverrides[id] = ov;
+      }
+
       const createRes = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,6 +62,8 @@ export function NewSessionForm({ personas }: Props) {
           question: question.trim(),
           personaIds: selectedIds,
           protocol: { maxCritiqueRounds: DEPTH_ROUNDS[depth] },
+          participantOverrides:
+            Object.keys(participantOverrides).length > 0 ? participantOverrides : undefined,
         }),
       });
       if (!createRes.ok) {
@@ -104,7 +117,9 @@ export function NewSessionForm({ personas }: Props) {
       <PersonaChecklist
         personas={personas}
         selected={selectedIds}
+        overrides={overrides}
         onToggle={toggle}
+        onOverride={setOverride}
       />
 
       {error && (

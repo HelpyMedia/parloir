@@ -3,14 +3,17 @@
 import type { Persona } from "@/lib/orchestrator/types";
 import { PersonaAvatar } from "../session/shared/PersonaAvatar";
 import { accentVar } from "@/lib/session-ui/persona-accent";
+import { ModelPickerInline } from "./ModelPickerInline";
 
 interface Props {
   personas: Persona[];
   selected: string[];
+  overrides: Record<string, string>;
   onToggle: (personaId: string) => void;
+  onOverride: (personaId: string, modelId: string) => void;
 }
 
-export function PersonaChecklist({ personas, selected, onToggle }: Props) {
+export function PersonaChecklist({ personas, selected, overrides, onToggle, onOverride }: Props) {
   return (
     <fieldset className="space-y-2">
       <legend className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
@@ -48,6 +51,20 @@ export function PersonaChecklist({ personas, selected, onToggle }: Props) {
                 <div className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
                   {p.model}
                 </div>
+                {checked && (
+                  <div
+                    className="mt-1"
+                    onClick={(e) => e.preventDefault()}
+                    role="presentation"
+                  >
+                    <ModelPickerInline
+                      personaId={p.id}
+                      defaultModel={p.model}
+                      override={overrides[p.id]}
+                      onChange={(modelId) => onOverride(p.id, modelId)}
+                    />
+                  </div>
+                )}
               </div>
             </label>
           );
