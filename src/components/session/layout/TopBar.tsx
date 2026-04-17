@@ -37,6 +37,12 @@ export function TopBar({ session, phase, round, totalCostUsd }: Props) {
           ${totalCostUsd.toFixed(3)}
         </span>
         <Link
+          href="/settings"
+          className="rounded border border-[var(--color-border-subtle)] px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-spot-warm)] hover:text-[var(--color-spot-warm)]"
+        >
+          Settings
+        </Link>
+        <Link
           href="/sessions/new"
           className="rounded border border-[var(--color-border-subtle)] px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-spot-warm)] hover:text-[var(--color-spot-warm)]"
         >
