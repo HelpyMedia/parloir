@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import type { Persona } from "@/lib/orchestrator/types";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
@@ -60,6 +60,21 @@ export function NewSessionForm({
     () => new Set(),
   );
   const snapshotRef = useRef<Snapshot | null>(null);
+
+  // Mirror of the form fields the recommender can touch. Updated on every
+  // render so async handlers can read the *latest* state at response time,
+  // not state captured in the useCallback closure when the request started.
+  // Without this, the user could edit during the in-flight fetch and have
+  // their edits overwritten, and undo would restore a stale pre-apply state.
+  const latestRef = useRef<Snapshot>({
+    title,
+    selectedIds,
+    overrides,
+    depth,
+  });
+  useEffect(() => {
+    latestRef.current = { title, selectedIds, overrides, depth };
+  }, [title, selectedIds, overrides, depth]);
 
   const clearSuggestionState = useCallback(() => {
     snapshotRef.current = null;
@@ -130,21 +145,21 @@ export function NewSessionForm({
       }
       const data = (await r.json()) as PanelSuggestionResponse;
 
-      // Snapshot pre-apply state for undo.
-      snapshotRef.current = {
-        title,
-        selectedIds,
-        overrides,
-        depth,
-      };
+      // Read the LIVE state at response time, not the closure's capture.
+      // The user may have edited fields while the request was in flight;
+      // snapshotting stale closure values would corrupt undo, and checking
+      // a stale title against "" could overwrite a title the user just typed.
+      const live = latestRef.current;
 
-      // Apply. Order matters: compute the row-glow set *before* mutating
-      // selectedIds so we diff correctly.
+      snapshotRef.current = { ...live };
+
       const glow = new Set<string>();
-      for (const id of data.personaIds) if (!selectedIds.includes(id)) glow.add(id);
-      for (const id of selectedIds) if (!data.personaIds.includes(id)) glow.add(id);
+      for (const id of data.personaIds)
+        if (!live.selectedIds.includes(id)) glow.add(id);
+      for (const id of live.selectedIds)
+        if (!data.personaIds.includes(id)) glow.add(id);
 
-      if (title.trim() === "") {
+      if (live.title.trim() === "") {
         setTitle(data.title);
         setTitleAnimationKey((k) => (k ?? 0) + 1);
       }
@@ -157,7 +172,7 @@ export function NewSessionForm({
       // Network error — silent no-op.
       setSuggestStatus("idle");
     }
-  }, [suggestStatus, question, title, selectedIds, overrides, depth]);
+  }, [suggestStatus, question]);
 
   const handleUndo = useCallback(() => {
     const snap = snapshotRef.current;

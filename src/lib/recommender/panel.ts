@@ -24,6 +24,17 @@ export interface PanelSuggestion {
   depth: Depth;
 }
 
+/**
+ * Discriminated result so the endpoint can log only on the path
+ * tryGenerateObject does NOT already warn about. "llm_failed" is already
+ * logged there; "no_usable_output" is our own post-filter rejection and
+ * merits a separate warn so operators can tell the two apart.
+ */
+export type RecommendResult =
+  | { kind: "ok"; suggestion: PanelSuggestion }
+  | { kind: "llm_failed" }
+  | { kind: "no_usable_output" };
+
 const SuggestionSchema = z.object({
   title: z
     .string()
@@ -65,7 +76,7 @@ export interface RecommendPanelParams {
 
 export async function recommendPanel(
   params: RecommendPanelParams,
-): Promise<PanelSuggestion | null> {
+): Promise<RecommendResult> {
   const { question, personas, ctx, modelChain, allowedOverrides } = params;
 
   const rosterIds = new Set(personas.map((p) => p.id));
@@ -105,11 +116,11 @@ export async function recommendPanel(
     ],
   });
 
-  if (!result) return null;
+  if (!result) return { kind: "llm_failed" };
   const raw = result.object;
 
   const personaIds = raw.personaIds.filter((id) => rosterIds.has(id)).slice(0, 5);
-  if (personaIds.length < 2) return null;
+  if (personaIds.length < 2) return { kind: "no_usable_output" };
 
   const overrides: Record<string, string> = {};
   for (const [personaId, modelId] of Object.entries(raw.overrides ?? {})) {
@@ -125,9 +136,12 @@ export async function recommendPanel(
   const title = raw.title.trim().replace(/\.+$/, "").slice(0, 200);
 
   return {
-    title,
-    personaIds,
-    overrides,
-    depth: raw.depth,
+    kind: "ok",
+    suggestion: {
+      title,
+      personaIds,
+      overrides,
+      depth: raw.depth,
+    },
   };
 }
