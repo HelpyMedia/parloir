@@ -2,7 +2,6 @@
 
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useState } from "react";
-import { useScrollCollapse } from "@/hooks/useScrollCollapse";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
@@ -22,9 +21,6 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const insights = deriveInsights(state);
   const [pausePending, setPausePending] = useState(false);
   const [resumePending, setResumePending] = useState(false);
-  const [hoverExpand, setHoverExpand] = useState(false);
-  const scrollCollapsed = useScrollCollapse(140);
-  const collapsed = scrollCollapsed && !hoverExpand;
 
   const sessionId = state.sessionId;
   const isPaused =
@@ -81,22 +77,31 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--color-bg-chamber)] text-[var(--color-text-primary)]">
-      <TopBar
-        session={state.session}
-        phase={state.phase}
-        round={state.round}
-        totalCostUsd={state.totalCostUsd}
-      />
-      <PhaseBar phase={state.phase} />
-
-      {state.error && (
-        <div
-          role="alert"
-          className="border-b border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-6 py-2 text-sm text-[var(--color-danger)]"
-        >
-          {state.error}
-        </div>
-      )}
+      <div className="sticky top-0 z-40 bg-[var(--color-bg-chamber)]">
+        <TopBar
+          session={state.session}
+          phase={state.phase}
+          round={state.round}
+          totalCostUsd={state.totalCostUsd}
+        />
+        <PhaseBar phase={state.phase} />
+        {!isSynthesisDone && (
+          <CollapsedStageBar
+            personas={state.personas}
+            personaState={state.personaState}
+            activeSpeakerId={activeSpeakerId}
+            live={state.live}
+          />
+        )}
+        {state.error && (
+          <div
+            role="alert"
+            className="border-b border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-6 py-2 text-sm text-[var(--color-danger)]"
+          >
+            {state.error}
+          </div>
+        )}
+      </div>
 
       {isSynthesisDone && state.synthesis ? (
         <main className="flex-1 overflow-y-auto">
@@ -104,45 +109,30 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         </main>
       ) : (
         <>
-          <div
-            className="sticky top-0 z-30 bg-[var(--color-bg-chamber)]"
-            onMouseEnter={() => scrollCollapsed && setHoverExpand(true)}
-            onMouseLeave={() => setHoverExpand(false)}
-          >
-            {collapsed ? (
-              <CollapsedStageBar
+          <div className="relative flex min-h-[380px]">
+            <PersonaRail
+              personas={state.personas}
+              personaState={state.personaState}
+            />
+            <div className="relative flex flex-1 items-stretch">
+              <CouncilStage
                 personas={state.personas}
                 personaState={state.personaState}
                 activeSpeakerId={activeSpeakerId}
+                paused={isPaused}
                 live={state.live}
               />
-            ) : (
-              <div className="relative flex min-h-[380px]">
-                <PersonaRail
-                  personas={state.personas}
-                  personaState={state.personaState}
-                />
-                <div className="relative flex flex-1 items-stretch">
-                  <CouncilStage
-                    personas={state.personas}
-                    personaState={state.personaState}
-                    activeSpeakerId={activeSpeakerId}
-                    paused={isPaused}
-                    live={state.live}
+              <AnimatePresence>
+                {isPaused && (
+                  <PausedOverlay
+                    prompt={state.humanInjectionPrompt}
+                    onSubmit={submitInjection}
+                    onCancel={requestResume}
                   />
-                  <AnimatePresence>
-                    {isPaused && (
-                      <PausedOverlay
-                        prompt={state.humanInjectionPrompt}
-                        onSubmit={submitInjection}
-                        onCancel={requestResume}
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
-                <InsightRail insights={insights} />
-              </div>
-            )}
+                )}
+              </AnimatePresence>
+            </div>
+            <InsightRail insights={insights} />
           </div>
           <TranscriptDrawer
             turns={state.turns}
