@@ -121,7 +121,7 @@ System prompt tells the model:
 - Emits the recommended shape per the Zod schema.
 - Depth heuristic — `quick` = factual; `standard` = comparison; `deep` = strategy/architecture.
 - Override heuristic — only suggest an override when a persona's role meaningfully benefits from a different model than its default (e.g. domain expert on a legal question → bump to the heaviest available model).
-- **Allowed-overrides list (authoritative).** The prompt includes an explicit list of model IDs the classifier is permitted to use as override values. This list is assembled server-side from (a) the curated catalog (`src/lib/providers/catalog.ts`) for each cloud provider whose key is in `ctx`, (b) a small hand-picked set of OpenRouter IDs if OpenRouter is in `ctx`, and (c) local IDs (Ollama/LM Studio) only if the user has those endpoints configured. For the v1 scope we punt on live-enumerating local models into the classifier prompt — the override heuristic is biased toward cloud personas anyway. Values outside this list are rejected at validation time (see next section).
+- **Allowed-overrides list (authoritative).** The prompt includes an explicit list of model IDs the classifier is permitted to use as override values. This list is assembled server-side from (a) the curated catalog (`src/lib/providers/catalog.ts`) for each cloud provider whose key is in `ctx`, and (b) a small hand-picked set of OpenRouter IDs if OpenRouter is in `ctx`. **Local model IDs (Ollama / LM Studio) are not included in the v1 allowed-overrides list at all** — we punt on live-enumerating local catalogs into the classifier prompt, and the override heuristic is biased toward cloud personas anyway. A fully local-only user (no cloud keys) will hit the empty-chain path and get a silent `204` before the LLM is called. Values outside the allowed list are rejected at validation time (see next section).
 
 ### Override pipeline
 
@@ -148,8 +148,8 @@ Three stages, all server-side:
       - If ctx has that native key → return as-is.
       - Else if ctx has openrouter → return `"openrouter/" + modelId`.
       - Else null.
-    - Else (unknown prefix):
-      - If ctx has openrouter → return as-is (OpenRouter passthrough, same as `resolveModel`).
+    - Else (unknown prefix such as `x-ai/`, `deepseek/`, `meta-llama/`):
+      - If ctx has openrouter → return `"openrouter/" + modelId`. Note: `resolveModel` routes unknown prefixes through OpenRouter as a passthrough, but the picker derives its provider tab from the literal prefix (`ModelPickerInline.tsx:19`) and snaps the value when the prefix doesn't match the active tab (`ModelPickerInline.tsx:69`). So for picker stability we must normalize unknown-prefix IDs to an explicit `openrouter/` prefix rather than returning them as-is. The resulting ID still resolves correctly because `resolveModel` strips `openrouter/` before handing the remainder to the OpenRouter SDK — so `openrouter/x-ai/grok-...` and the raw `x-ai/grok-...` route to the same OpenRouter call.
       - Else null.
 
     Any override where the helper returns `null` is dropped before responding. A suggestion with all overrides dropped still succeeds — the form uses persona defaults.
@@ -179,9 +179,12 @@ clicks "Suggest a panel"   ─────► POST /api/sessions/recommend-panel
         │                                   ▼
         │                        loadProviderContext(userId)
         │                        listTemplatePersonas()
-        │                        pickClassifierModelChain(ctx, personaModels)
+        │                        pickClassifierModelChain(ctx)      ── empty? 204
+        │                        build allowed-overrides from ctx
         │                        tryGenerateObject(chain, schema, prompt)
-        │                        validate overrides via resolveModel
+        │                        filter personaIds to roster (<2? 204)
+        │                        drop overrides not in allowed list
+        │                        normalizeModelIdForPicker() per override
         │                                   │
         │           ┌────── 204 ────────────┤
         │           ▼                       ▼
@@ -212,7 +215,7 @@ clicks "Suggest a panel"   ─────► POST /api/sessions/recommend-panel
 No test runner is wired up in the repo. Manual validation before merge:
 
 - Type a short/domain-specific question ("Should we migrate Postgres 16 → 17?") → expect 2–3 personas, maybe `deep`.
-- Type a quick factual question → expect `short`.
+- Type a quick factual question → expect `quick`.
 - Disconnect all providers except Ollama → suggestion should return or silently no-op, never 500.
 - Click suggest, then click undo → exact prior state restored.
 - Click suggest twice rapidly → only one request in flight.
