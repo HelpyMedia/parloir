@@ -102,33 +102,51 @@ export async function runCritiqueRound(
   roundNumber: number,
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ): Promise<Turn[]> {
   await sink.emit({ type: "phase_enter", phase: "critique", round: roundNumber });
-
-  const transcript = await storage.getTranscript(session.id);
-  const turns: Turn[] = [];
 
   // Sequential, not parallel — each agent sees the previous agents' turns this round.
   const activeParticipants = participants
     .filter((p) => !p.silenced)
     .sort((a, b) => a.seatIndex - b.seatIndex);
 
-  for (let idx = 0; idx < activeParticipants.length; idx++) {
-    const participant = activeParticipants[idx];
+  const results: Turn[] = [];
+
+  for (let i = 0; i < activeParticipants.length; i++) {
+    // Between-turn control point: if the user hit pause while the previous
+    // speaker was streaming, we honor it here rather than waiting for the
+    // whole round to finish. Any injection queued during the pause is
+    // appended to the transcript and becomes visible to the next speaker.
+    if (i > 0) {
+      await drainInjectionsAndWait(
+        session,
+        "critique",
+        storage,
+        sink,
+        controlPlane,
+      );
+    }
+
+    const transcript = await storage.getTranscript(session.id);
+    const turnIndex = transcript.filter(
+      (t) => t.phase === "critique" && t.roundNumber === roundNumber,
+    ).length;
+
     const turn = await runAgentTurn({
       session,
-      participant,
+      participant: activeParticipants[i],
       phase: "critique",
       roundNumber,
-      turnIndex: idx,
-      visibleHistory: [...transcript, ...turns],
+      turnIndex,
+      visibleHistory: transcript,
       storage,
       sink,
     });
-    turns.push(turn);
+    results.push(turn);
   }
 
-  return turns;
+  return results;
 }
 
 // ─── Phase 3: Consensus check (judge agent) ─────────────────────────────────
@@ -169,6 +187,7 @@ export async function runAdaptiveRound(
   report: ConsensusReport,
   storage: Storage,
   sink: StreamSink,
+  controlPlane: ControlPlane,
 ): Promise<Turn[]> {
   await sink.emit({
     type: "phase_enter",
@@ -194,7 +213,14 @@ export async function runAdaptiveRound(
   // Reassign seat index for this round only — storage is unchanged.
   const reseated = reordered.map((p, i) => ({ ...p, seatIndex: i }));
 
-  return runCritiqueRound(session, reseated, session.currentRound, storage, sink);
+  return runCritiqueRound(
+    session,
+    reseated,
+    session.currentRound,
+    storage,
+    sink,
+    controlPlane,
+  );
 }
 
 // ─── Phase 5: Synthesis (secretary) ─────────────────────────────────────────
@@ -245,7 +271,14 @@ export async function runDebate(
       await storage.updateSession(session.id, { status: "critique", currentRound: round });
       // Refresh in-memory currentRound so drain places human turns in this round.
       session.currentRound = round;
-      await runCritiqueRound(session, participants, round, storage, sink);
+      await runCritiqueRound(
+        session,
+        participants,
+        round,
+        storage,
+        sink,
+        controlPlane,
+      );
 
       await drainInjectionsAndWait(session, "critique", storage, sink, controlPlane);
 
@@ -271,7 +304,14 @@ export async function runDebate(
           sink,
           controlPlane,
         );
-        await runAdaptiveRound(session, participants, report, storage, sink);
+        await runAdaptiveRound(
+          session,
+          participants,
+          report,
+          storage,
+          sink,
+          controlPlane,
+        );
         break;
       }
     }

@@ -53,17 +53,13 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
       </header>
 
       <div className="relative">
-        {live ? (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-primary)] [max-width:72ch]">
-            {displayed}
-            <span
-              className="ml-0.5 inline-block h-4 w-[2px] animate-pulse align-middle"
-              style={{ backgroundColor: color }}
-              aria-hidden
-            />
-          </div>
-        ) : (
-          <TurnMarkdown content={displayed} />
+        <TurnMarkdown content={displayed} />
+        {live && (
+          <span
+            className="ml-0.5 inline-block h-4 w-[2px] animate-pulse align-middle"
+            style={{ backgroundColor: color }}
+            aria-hidden
+          />
         )}
       </div>
 
