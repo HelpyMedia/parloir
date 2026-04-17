@@ -12,10 +12,9 @@ import { StartButton } from "./StartButton";
 
 interface Props {
   personas: Persona[];
-  createdBy: string;
 }
 
-export function NewSessionForm({ personas, createdBy }: Props) {
+export function NewSessionForm({ personas }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -52,7 +51,6 @@ export function NewSessionForm({ personas, createdBy }: Props) {
           question: question.trim(),
           personaIds: selectedIds,
           protocol: { maxCritiqueRounds: DEPTH_ROUNDS[depth] },
-          createdBy,
         }),
       });
       if (!createRes.ok) {

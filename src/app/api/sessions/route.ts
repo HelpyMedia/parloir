@@ -5,11 +5,13 @@
  *   title: string,
  *   question: string,
  *   context?: string,
- *   personaIds: string[],       // 2-5 personas
- *   protocol?: Partial<ProtocolConfig>
+ *   personaIds: string[],              // 2-5 personas
+ *   protocol?: Partial<ProtocolConfig>,
+ *   participantOverrides?: Record<string, string>  // personaId → modelId
  * }
  *
  * Returns the created session. Client then POSTs to /start to kick off the debate.
+ * Auth: derived from session cookie via requireUser() — no createdBy in body.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,6 +19,10 @@ import { z } from "zod";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { DEFAULT_PROTOCOL } from "@/lib/orchestrator/types";
+import { requireUser } from "@/lib/auth/server";
+
+// Provider prefixes accepted as model override values.
+const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
 
 const CreateSchema = z.object({
   title: z.string().min(1).max(200),
@@ -34,17 +40,33 @@ const CreateSchema = z.object({
       synthesizerModel: z.string().optional(),
     })
     .optional(),
-  // TODO: pull from authenticated user once auth is wired
-  createdBy: z.string().uuid(),
+  participantOverrides: z.record(z.string(), z.string()).optional(),
 });
 
 export async function POST(req: NextRequest) {
+  // Auth check before any DB work so auth errors surface as 401/redirect, not 500.
+  const user = await requireUser();
+
   const body = await req.json();
   const parsed = CreateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
   const input = parsed.data;
+
+  // Validate provider prefixes on any model overrides.
+  if (input.participantOverrides) {
+    for (const [personaId, modelId] of Object.entries(input.participantOverrides)) {
+      if (!VALID_PROVIDER_PREFIX.test(modelId)) {
+        return NextResponse.json(
+          {
+            error: `Invalid model override for persona "${personaId}": "${modelId}" does not start with a recognised provider prefix (anthropic/, openai/, google/, openrouter/, ollama/, lmstudio/, vllm/).`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+  }
 
   const protocol = { ...DEFAULT_PROTOCOL, ...(input.protocol ?? {}) };
 
@@ -56,7 +78,8 @@ export async function POST(req: NextRequest) {
         question: input.question,
         context: input.context,
         protocol,
-        createdBy: input.createdBy,
+        createdBy: user.id,
+        participantModelOverrides: input.participantOverrides ?? {},
         status: "setup",
       })
       .returning();

@@ -216,6 +216,10 @@ export const sessions = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     pauseRequestedAt: timestamp("pause_requested_at", { withTimezone: true }),
     pausedAtPhase: phaseEnum("paused_at_phase"),
+    participantModelOverrides: jsonb("participant_model_overrides")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
   },
   (t) => ({
     createdByIdx: index("sessions_created_by_idx").on(t.createdBy),

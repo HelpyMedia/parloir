@@ -5,19 +5,21 @@
  * whether the session is currently paused — the orchestrator drains the
  * queue between every phase. If the debate has already completed or failed,
  * return 409.
- *
- * Auth: unwired (CLAUDE.md). We use sessions.createdBy as the author.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
+import { requireUser } from "@/lib/auth/server";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Auth before body parsing so auth errors don't get swallowed as 500s.
+  const user = await requireUser();
+
   const { id: sessionId } = await params;
   const body = (await req.json().catch(() => null)) as
     | { content?: unknown }
@@ -44,6 +46,9 @@ export async function POST(
   if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
+  if (session.createdBy !== user.id) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   if (session.status === "completed" || session.status === "failed") {
     return NextResponse.json(
       { error: `Cannot inject into session in status "${session.status}"` },
@@ -51,19 +56,14 @@ export async function POST(
     );
   }
 
-  const authorId = session.createdBy;
-  const authorRow = await db.query.users.findFirst({
-    where: eq(schema.users.id, authorId),
-    columns: { name: true, email: true },
-  });
-  const authorName = authorRow?.name || authorRow?.email || "Observer";
+  const authorName = user.name || user.email || "Observer";
 
   const [inserted] = await db
     .insert(schema.pendingInjections)
     .values({
       sessionId,
       content,
-      createdBy: authorId,
+      createdBy: user.id,
       createdByName: authorName,
     })
     .returning({ id: schema.pendingInjections.id });

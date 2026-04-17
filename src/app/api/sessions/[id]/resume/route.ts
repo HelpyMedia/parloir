@@ -13,11 +13,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { inngest } from "@/lib/inngest/client";
+import { requireUser } from "@/lib/auth/server";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireUser();
   const { id: sessionId } = await params;
 
   const session = await db.query.sessions.findFirst({
@@ -25,6 +27,9 @@ export async function POST(
   });
   if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+  if (session.createdBy !== user.id) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (!session.pauseRequestedAt) {
     return NextResponse.json(
