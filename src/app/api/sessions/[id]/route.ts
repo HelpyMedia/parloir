@@ -12,6 +12,8 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { loadPersona } from "@/lib/personas";
+import { requireUser } from "@/lib/auth/server";
+import { getOwnedSession } from "@/lib/sessions/authz";
 import type {
   ConsensusReport,
   Persona,
@@ -28,14 +30,14 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireUser();
   const { id } = await params;
 
-  const sessionRow = await db.query.sessions.findFirst({
-    where: eq(schema.sessions.id, id),
-  });
-  if (!sessionRow) {
+  const owned = await getOwnedSession(id, user.id);
+  if (owned.status !== "ok") {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
+  const sessionRow = owned.session;
 
   const participantRows = await db
     .select()

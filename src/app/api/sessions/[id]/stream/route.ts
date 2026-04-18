@@ -11,10 +11,12 @@
  * this natively) and the workflow runs in Inngest, not here.
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { and, eq, gt, asc } from "drizzle-orm";
+import { requireUser } from "@/lib/auth/server";
+import { getOwnedSession } from "@/lib/sessions/authz";
 
 // Keep the route as a Node runtime — SSE + long polling needs it.
 export const runtime = "nodejs";
@@ -27,7 +29,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireUser();
   const { id: sessionId } = await params;
+
+  const owned = await getOwnedSession(sessionId, user.id);
+  if (owned.status !== "ok") {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
   const lastSeq = Number(req.nextUrl.searchParams.get("lastSeq") ?? 0);
 
   const stream = new ReadableStream({

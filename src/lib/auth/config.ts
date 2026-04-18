@@ -20,7 +20,12 @@ export const auth = betterAuth({
       verification: authVerifications,
     },
   }),
-  emailAndPassword: { enabled: true, requireEmailVerification: false },
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+    minPasswordLength: 12,
+    maxPasswordLength: 128,
+  },
   session: { expiresIn: 60 * 60 * 24 * 30 },
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,

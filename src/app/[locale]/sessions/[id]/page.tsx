@@ -3,6 +3,8 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { loadPersona } from "@/lib/personas";
+import { requireUser } from "@/lib/auth/server";
+import { getOwnedSession } from "@/lib/sessions/authz";
 import type {
   ConsensusReport,
   Persona,
@@ -15,11 +17,10 @@ import { SessionShell } from "@/components/session/layout/SessionShell";
 
 export const dynamic = "force-dynamic";
 
-async function loadBundle(id: string): Promise<HydrationBundle | null> {
-  const sessionRow = await db.query.sessions.findFirst({
-    where: eq(schema.sessions.id, id),
-  });
-  if (!sessionRow) return null;
+async function loadBundle(id: string, userId: string): Promise<HydrationBundle | null> {
+  const owned = await getOwnedSession(id, userId);
+  if (owned.status !== "ok") return null;
+  const sessionRow = owned.session;
 
   const participantRows = await db
     .select()
@@ -147,8 +148,9 @@ export default async function SessionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireUser();
   const { id } = await params;
-  const bundle = await loadBundle(id);
+  const bundle = await loadBundle(id, user.id);
   if (!bundle) notFound();
   return <SessionShell bundle={bundle} />;
 }
