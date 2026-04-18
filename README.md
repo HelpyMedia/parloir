@@ -8,6 +8,20 @@ Parloir assembles a panel of AI agents — each with a distinct role, model, and
 
 ---
 
+## What This Repo Is
+
+Parloir is the open-source, single-instance self-hostable edition of the
+product. The goal of this repository is to make the debate engine readable,
+hackable, and honestly deployable by technically competent operators.
+
+Today that means:
+- one app instance
+- your own provider accounts or local models
+- Postgres + Inngest under your control
+- no built-in billing, quotas, multi-tenant org controls, or hosted ops layer
+
+Those hosted/SaaS concerns are intended for a future cloud product, not this repo.
+
 ## Why this exists
 
 "Multi-agent" tools today are mostly four chat windows stapled together. Parloir implements a real **debate protocol** grounded in the multi-agent debate (MAD) research literature:
@@ -99,7 +113,7 @@ See [ROADMAP.md](./ROADMAP.md) for the phased build plan. In summary:
 
 Parloir is fully open source and self-hostable. The entire deliberation engine — the protocol, the orchestrator, all personas, all providers, all features — lives in this repository under Apache 2.0. You can run it for yourself, for your team, or commercially inside your own organization, with no attribution or payment required beyond the license terms.
 
-A managed hosted version is also planned at [parloir.dev](https://parloir.dev) for teams who'd rather not run Postgres, Inngest workers, and provider accounts themselves. The hosted version is a deployed instance of this same codebase — it doesn't hold back features. What you pay for is managed infrastructure, uptime, support, and eventual team-collaboration features designed for organizations running many sessions at scale.
+A managed hosted version is also planned at [parloir.dev](https://parloir.dev) for teams who'd rather not run Postgres, Inngest workers, and provider accounts themselves. The hosted offering is expected to layer on SaaS concerns such as billing, collaboration, hosted credentials, quotas, and operations tooling rather than withholding core correctness or security fixes from OSS.
 
 If you self-host and build something you find useful, we'd love to hear about it.
 
@@ -111,6 +125,14 @@ If you self-host and build something you find useful, we'd love to hear about it
 - Current request rate limiting is in-memory and intended for single-instance
   self-hosting. If you deploy multiple app instances, replace it with a
   shared store such as Redis before treating it as internet-facing SaaS.
+- CI runs `lint`, `typecheck`, and `build` on pull requests and pushes to
+  `main`. Match that baseline locally before opening a PR.
+
+## Community
+
+- Security reports: see [SECURITY.md](./SECURITY.md)
+- Contributions: see [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Bug reports and feature requests: use the GitHub issue templates
 
 ## Contributing
 

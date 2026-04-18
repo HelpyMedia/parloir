@@ -1,0 +1,48 @@
+name: Feature Request
+description: Suggest an improvement for Parloir OSS.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for OSS improvements to the self-hostable repo.
+        For hosted SaaS ideas, say so explicitly so we can decide whether they
+        belong in the future cloud product instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user problem or workflow gap does this address?
+      placeholder: It's difficult to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you want to see.
+      placeholder: Add...
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which product boundary does this fit?
+      options:
+        - OSS self-host repo
+        - Future hosted/cloud product
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Describe workarounds or other approaches.
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Links, screenshots, protocol papers, or prior art.

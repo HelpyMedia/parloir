@@ -9,6 +9,11 @@ We favor:
 - **Postgres for everything that can live there.** Event queue, vector store, session state.
 - **Real research over "AI best practices" blog posts.** If you're adding a protocol feature, cite the paper.
 
+This repository targets the OSS, single-instance self-hostable edition of
+Parloir. Changes that primarily exist for billing, hosted multi-tenancy,
+quota enforcement, or SaaS back-office tooling should usually be scoped for
+the future cloud product instead of this repo.
+
 ## Getting started
 
 ```bash
@@ -23,6 +28,29 @@ pnpm db:migrate
 pnpm inngest:dev    # Inngest local dev server at :8288
 pnpm dev            # Next.js at :3000
 ```
+
+`pnpm db:seed` is optional for normal app usage but useful for local protocol
+iteration because it syncs the template personas and creates a dev user.
+
+## Before opening a PR
+
+Run the same baseline checks as CI:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+If your change touches session creation, auth, provider settings, or debate
+execution, also run the relevant manual flow end-to-end.
+
+## Filing issues
+
+- Use the bug template for reproducible defects in the OSS app.
+- Use the feature request template for ideas that fit the self-host repo.
+- For security issues, follow [SECURITY.md](./SECURITY.md) and avoid posting
+  exploit details publicly.
 
 ## Where to add things
 

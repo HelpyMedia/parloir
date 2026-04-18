@@ -1,0 +1,74 @@
+name: Bug Report
+description: Report a reproducible bug in Parloir OSS.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Before filing:
+        - confirm you're on the latest `main`
+        - include exact steps to reproduce
+        - mention whether you're running the single-instance self-host setup
+  - type: dropdown
+    id: deployment_mode
+    attributes:
+      label: Deployment Mode
+      description: How are you running Parloir?
+      options:
+        - Single-instance self-host (recommended)
+        - Local development
+        - Multi-instance / custom deployment
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / Version
+      description: Git commit SHA or release/tag if applicable.
+      placeholder: 92c8660
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly and concretely.
+      placeholder: When I create a session, the API returns...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest set of steps that reproduces the issue.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The session should start and stream events.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste only the relevant excerpt. Redact secrets and tokens.
+      render: shell
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment details
+      description: Node version, OS, deployment target, browser, provider setup, etc.
+      placeholder: |
+        Node 20
+        Ubuntu 24.04
+        pnpm 9.12.0
+        Chrome 135
