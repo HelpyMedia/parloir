@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
 import { isCloudProvider, isLocalProvider, normalizeLocalBaseUrl, type LocalProvider } from "@/lib/credentials/service";
+import { safeFetch, SsrfBlockedError } from "@/lib/net/safe-fetch";
 
 const TestBody = z.object({
   apiKey: z.string().optional(),
@@ -48,18 +49,21 @@ async function testLocal(provider: LocalProvider, baseUrl: string): Promise<{ ok
   try {
     const root = normalizeLocalBaseUrl(provider, baseUrl);
     if (provider === "ollama") {
-      const r = await fetch(root + "/api/tags");
+      const r = await safeFetch(root + "/api/tags", { timeoutMs: 4000 });
       if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
       return { ok: true };
     }
     if (provider === "lmstudio") {
-      const r = await fetch(root + "/v1/models");
+      const r = await safeFetch(root + "/v1/models", { timeoutMs: 4000 });
       if (!r.ok) return { ok: false, detail: `HTTP ${r.status}` };
       return { ok: true };
     }
     return { ok: false, detail: "unsupported provider" };
   } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+    if (e instanceof SsrfBlockedError) {
+      return { ok: false, detail: "host not allowed" };
+    }
+    return { ok: false, detail: "unreachable" };
   }
 }
 

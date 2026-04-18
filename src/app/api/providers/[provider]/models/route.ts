@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
 import { getCredential, listLocalUrls, normalizeLocalBaseUrl } from "@/lib/credentials/service";
 import { CURATED } from "@/lib/providers/catalog";
+import { safeFetch } from "@/lib/net/safe-fetch";
 
 interface OpenRouterModel { id: string; name?: string }
 interface OllamaTagsResponse { models?: Array<{ name: string }> }
@@ -17,14 +18,18 @@ async function openRouterModels(apiKey: string) {
 }
 
 async function ollamaModels(baseUrl: string) {
-  const r = await fetch(normalizeLocalBaseUrl("ollama", baseUrl) + "/api/tags");
+  const r = await safeFetch(normalizeLocalBaseUrl("ollama", baseUrl) + "/api/tags", {
+    timeoutMs: 4000,
+  });
   if (!r.ok) throw new Error(`ollama ${r.status}`);
   const body = (await r.json()) as OllamaTagsResponse;
   return (body.models ?? []).map((m) => ({ id: `ollama/${m.name}`, label: m.name }));
 }
 
 async function lmstudioModels(baseUrl: string) {
-  const r = await fetch(normalizeLocalBaseUrl("lmstudio", baseUrl) + "/v1/models");
+  const r = await safeFetch(normalizeLocalBaseUrl("lmstudio", baseUrl) + "/v1/models", {
+    timeoutMs: 4000,
+  });
   if (!r.ok) throw new Error(`lmstudio ${r.status}`);
   const body = (await r.json()) as OpenAICompatModels;
   return (body.data ?? []).map((m) => ({ id: `lmstudio/${m.id}`, label: m.id }));
