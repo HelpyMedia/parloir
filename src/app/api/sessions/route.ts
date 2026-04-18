@@ -43,7 +43,18 @@ const CreateSchema = z.object({
       synthesizerModel: z.string().optional(),
     })
     .optional(),
-  participantOverrides: z.record(z.string(), z.string()).optional(),
+  // Value matches "<provider>/<model>"; provider slug is lowercase, model
+  // is a bounded set of characters the upstream SDKs accept. Also bounds
+  // overall length so a malicious client can't stash megabytes in the row.
+  participantOverrides: z
+    .record(
+      z.string(),
+      z
+        .string()
+        .max(200)
+        .regex(/^[a-z0-9_-]+\/[A-Za-z0-9._:\-/]{1,180}$/),
+    )
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {

@@ -17,6 +17,13 @@ import { sql } from "drizzle-orm";
 const DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 async function main() {
+  // Require explicit NODE_ENV so accidentally running with unset env in a
+  // production shell doesn't fall through the "development" branch and
+  // silently skip the dev seed (or worse, insert the dev user in prod if
+  // the branch is ever widened).
+  if (!process.env.NODE_ENV) {
+    throw new Error("NODE_ENV must be set explicitly (development / test / production)");
+  }
   if (process.env.NODE_ENV === "development") {
     await db
       .insert(schema.users)

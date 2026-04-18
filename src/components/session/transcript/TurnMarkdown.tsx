@@ -28,6 +28,11 @@ export function TurnMarkdown({ content }: Props) {
         [&_pre_code]:bg-transparent [&_pre_code]:p-0
         [&_a]:text-[var(--color-spot-warm)] [&_a]:underline [&_a]:underline-offset-2"
     >
+      {/* SECURITY: do NOT add `rehype-raw` or any plugin that re-enables raw
+          HTML rendering without a full XSS re-audit. react-markdown's default
+          sanitizer blocks `javascript:` URLs and unknown elements — turn ids
+          are not model-controlled but `content` is, and a prompt-injection
+          could place hostile HTML if raw passthrough is added. */}
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );
