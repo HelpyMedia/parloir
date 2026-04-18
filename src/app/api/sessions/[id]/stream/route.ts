@@ -123,7 +123,7 @@ export async function GET(
 
       poll().catch((err) => {
         console.error("stream poll error", err);
-        send({ message: String(err), recoverable: false }, "error");
+        send({ message: "stream error", recoverable: false }, "error");
         closed = true;
         clearInterval(heartbeat);
         try {

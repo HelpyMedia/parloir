@@ -21,6 +21,7 @@ import * as schema from "@/lib/db/schema";
 import { DEFAULT_PROTOCOL } from "@/lib/orchestrator/types";
 import { requireUser } from "@/lib/auth/server";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
+import { respondServerError } from "@/lib/api/errors";
 
 // Provider prefixes accepted as model override values.
 const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
@@ -105,8 +106,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ session }, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[POST /api/sessions] failed:", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return respondServerError("POST /api/sessions", err);
   }
 }
