@@ -13,12 +13,23 @@ import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
+import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireUser();
+
+  const limited = await withRateLimit(
+    req,
+    "session:start",
+    RATE_LIMITS.sessionWrite,
+    user.id,
+    async () => null,
+  );
+  if (limited instanceof NextResponse) return limited;
+
   const { id: sessionId } = await params;
 
   const session = await db.query.sessions.findFirst({

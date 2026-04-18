@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
 import { isCloudProvider, isLocalProvider, normalizeLocalBaseUrl, type LocalProvider } from "@/lib/credentials/service";
 import { safeFetch, SsrfBlockedError } from "@/lib/net/safe-fetch";
+import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 
 const TestBody = z.object({
   apiKey: z.string().optional(),
@@ -71,7 +72,17 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ) {
-  await requireUser();
+  const user = await requireUser();
+
+  const limited = await withRateLimit(
+    req,
+    "credential:test",
+    RATE_LIMITS.credentialTest,
+    user.id,
+    async () => null,
+  );
+  if (limited instanceof NextResponse) return limited;
+
   const { provider } = await params;
   const body = await req.json().catch(() => ({}));
   const parsed = TestBody.safeParse(body);

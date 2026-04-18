@@ -20,6 +20,7 @@ import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { DEFAULT_PROTOCOL } from "@/lib/orchestrator/types";
 import { requireUser } from "@/lib/auth/server";
+import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 
 // Provider prefixes accepted as model override values.
 const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
@@ -46,6 +47,15 @@ const CreateSchema = z.object({
 export async function POST(req: NextRequest) {
   // Auth check before any DB work so auth errors surface as 401/redirect, not 500.
   const user = await requireUser();
+
+  const limited = await withRateLimit(
+    req,
+    "session:create",
+    RATE_LIMITS.sessionWrite,
+    user.id,
+    async () => null,
+  );
+  if (limited instanceof NextResponse) return limited;
 
   const body = await req.json();
   const parsed = CreateSchema.safeParse(body);

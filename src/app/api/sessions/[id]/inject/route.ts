@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/server";
+import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 
 export async function POST(
   req: NextRequest,
@@ -19,6 +20,15 @@ export async function POST(
 ) {
   // Auth before body parsing so auth errors don't get swallowed as 500s.
   const user = await requireUser();
+
+  const limited = await withRateLimit(
+    req,
+    "session:inject",
+    RATE_LIMITS.inject,
+    user.id,
+    async () => null,
+  );
+  if (limited instanceof NextResponse) return limited;
 
   const { id: sessionId } = await params;
   const body = (await req.json().catch(() => null)) as

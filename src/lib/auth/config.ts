@@ -27,6 +27,14 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
   },
   session: { expiresIn: 60 * 60 * 24 * 30 },
+  // In-memory rate limit — single instance only, resets on restart. Good
+  // enough to deter brute-force on sign-in and mass-signup from one IP.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 10,
+    storage: "memory",
+  },
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,
   // users.id is uuid defaultRandom() — let Postgres generate it so Better
