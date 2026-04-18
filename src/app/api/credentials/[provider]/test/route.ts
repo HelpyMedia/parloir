@@ -42,8 +42,8 @@ async function testCloud(provider: string, apiKey: string): Promise<{ ok: boolea
       return { ok: true };
     }
     return { ok: false, detail: "unsupported provider" };
-  } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+  } catch {
+    return { ok: false, detail: "unreachable" };
   }
 }
 

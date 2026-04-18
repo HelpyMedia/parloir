@@ -20,6 +20,8 @@
  */
 
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIPv4, isIPv6 } from "node:net";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
@@ -76,7 +78,14 @@ function allowPrivate(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
-export async function assertPublicHttpUrl(raw: string): Promise<URL> {
+interface ResolvedTarget {
+  url: URL;
+  connectHostname: string;
+  hostHeader: string;
+  servername?: string;
+}
+
+async function resolvePublicHttpTarget(raw: string): Promise<ResolvedTarget> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -87,16 +96,22 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
     throw new SsrfBlockedError(`scheme not allowed: ${url.protocol}`);
   }
   if (!url.hostname) throw new SsrfBlockedError("missing host");
+  const hostHeader = url.host;
 
   // If the host is already a literal IP, check it directly.
   if (isIPv4(url.hostname) || isIPv6(url.hostname)) {
     if (isPrivateAddress(url.hostname) && !allowPrivate()) {
       throw new SsrfBlockedError(`private address blocked: ${url.hostname}`);
     }
-    return url;
+    return {
+      url,
+      connectHostname: url.hostname,
+      hostHeader,
+    };
   }
 
-  // Otherwise resolve and reject if any returned address is private.
+  // Resolve once and connect to the validated address directly so the
+  // outbound request cannot re-resolve the hostname to a different IP.
   const records = await lookup(url.hostname, { all: true }).catch(() => []);
   if (records.length === 0) {
     throw new SsrfBlockedError(`host not resolvable: ${url.hostname}`);
@@ -108,7 +123,16 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
       );
     }
   }
-  return url;
+  return {
+    url,
+    connectHostname: records[0]!.address,
+    hostHeader,
+    servername: url.hostname,
+  };
+}
+
+export async function assertPublicHttpUrl(raw: string): Promise<URL> {
+  return (await resolvePublicHttpTarget(raw)).url;
 }
 
 export interface SafeFetchOptions {
@@ -122,62 +146,109 @@ export async function safeFetch(
   rawUrl: string,
   opts: SafeFetchOptions = {},
 ): Promise<Response> {
-  const url = await assertPublicHttpUrl(rawUrl);
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-  );
-  try {
-    const res = await fetch(url, {
-      method: opts.method ?? "GET",
-      headers: opts.headers,
-      signal: controller.signal,
-      redirect: "manual",
-    });
-    const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-    const lenHeader = res.headers.get("content-length");
-    if (lenHeader && Number(lenHeader) > maxBytes) {
-      throw new SsrfBlockedError("response too large");
-    }
-    // Buffer the body through our cap so a missing content-length header
-    // can't leak a huge response.
-    const buffer = await readCapped(res, maxBytes);
-    return new Response(buffer as BodyInit, {
-      status: res.status,
-      statusText: res.statusText,
-      headers: res.headers,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const target = await resolvePublicHttpTarget(rawUrl);
+  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  return await requestResolvedTarget(target, {
+    method: opts.method ?? "GET",
+    headers: opts.headers,
+    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxBytes,
+  });
 }
 
-async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array> {
-  if (!res.body) return new Uint8Array();
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      try {
-        await reader.cancel();
-      } catch {
-        /* ignore */
-      }
-      throw new SsrfBlockedError("response too large");
-    }
-    chunks.push(value);
+async function requestResolvedTarget(
+  target: ResolvedTarget,
+  opts: Required<Pick<SafeFetchOptions, "method">> &
+    Pick<SafeFetchOptions, "headers"> & {
+      timeoutMs: number;
+      maxBytes: number;
+    },
+): Promise<Response> {
+  const isHttps = target.url.protocol === "https:";
+  const transport = isHttps ? https : http;
+
+  return await new Promise<Response>((resolve, reject) => {
+    const headers = new Headers(opts.headers);
+    headers.set("host", target.hostHeader);
+
+    const req = transport.request(
+      {
+        protocol: target.url.protocol,
+        hostname: target.connectHostname,
+        port: target.url.port || undefined,
+        method: opts.method,
+        path: `${target.url.pathname}${target.url.search}`,
+        headers: headersToNode(headers),
+        servername: isHttps ? target.servername : undefined,
+      },
+      (res) => {
+        const lenHeader = res.headers["content-length"];
+        const declaredLength = Array.isArray(lenHeader) ? lenHeader[0] : lenHeader;
+        if (declaredLength && Number(declaredLength) > opts.maxBytes) {
+          res.destroy();
+          reject(new SsrfBlockedError("response too large"));
+          return;
+        }
+
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+
+        res.on("data", (chunk: Buffer) => {
+          total += chunk.byteLength;
+          if (total > opts.maxBytes) {
+            res.destroy(new SsrfBlockedError("response too large"));
+            return;
+          }
+          chunks.push(new Uint8Array(chunk));
+        });
+
+        res.on("end", () => {
+          const body = new Uint8Array(total);
+          let offset = 0;
+          for (const chunk of chunks) {
+            body.set(chunk, offset);
+            offset += chunk.byteLength;
+          }
+          resolve(
+            new Response(body as BodyInit, {
+              status: res.statusCode ?? 502,
+              statusText: res.statusMessage ?? "",
+              headers: nodeHeadersToWeb(res.headers),
+            }),
+          );
+        });
+
+        res.on("error", reject);
+      },
+    );
+
+    req.on("error", reject);
+    req.setTimeout(opts.timeoutMs, () => {
+      req.destroy(new Error("request timed out"));
+    });
+    req.end();
+  });
+}
+
+function headersToNode(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of headers.entries()) {
+    out[key] = value;
   }
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.byteLength;
+  return out;
+}
+
+function nodeHeadersToWeb(
+  headers: http.IncomingHttpHeaders,
+): Headers {
+  const out = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) out.append(key, item);
+      continue;
+    }
+    out.set(key, value);
   }
   return out;
 }

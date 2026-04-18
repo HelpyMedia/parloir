@@ -55,11 +55,25 @@ export function limit(key: string, cfg: LimitConfig): LimitResult {
 }
 
 function clientIp(req: NextRequest): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  const real = req.headers.get("x-real-ip");
-  if (real) return real;
+  const trusted = trustedForwardedIp(req);
+  if (trusted) return trusted;
   return "unknown";
+}
+
+function shouldTrustProxyHeaders(): boolean {
+  return process.env.VERCEL === "1" || process.env.PARLOIR_TRUST_PROXY_HEADERS === "1";
+}
+
+function trustedForwardedIp(req: Request | NextRequest): string | null {
+  if (!shouldTrustProxyHeaders()) return null;
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const first = xff.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+  return null;
 }
 
 /**
@@ -99,9 +113,7 @@ export const RATE_LIMITS = {
 
 /** Extract client IP (exposed for Better Auth hook use). */
 export function getClientIp(req: Request | NextRequest): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  const real = req.headers.get("x-real-ip");
-  if (real) return real;
+  const trusted = trustedForwardedIp(req);
+  if (trusted) return trusted;
   return "unknown";
 }

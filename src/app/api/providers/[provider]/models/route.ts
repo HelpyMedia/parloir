@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
 import { getCredential, listLocalUrls, normalizeLocalBaseUrl } from "@/lib/credentials/service";
 import { CURATED } from "@/lib/providers/catalog";
-import { safeFetch } from "@/lib/net/safe-fetch";
+import { safeFetch, SsrfBlockedError } from "@/lib/net/safe-fetch";
 
 interface OpenRouterModel { id: string; name?: string }
 interface OllamaTagsResponse { models?: Array<{ name: string }> }
 interface OpenAICompatModels { data?: Array<{ id: string }> }
+
+function upstreamErrorResponse(err: unknown): NextResponse {
+  if (err instanceof SsrfBlockedError) {
+    return NextResponse.json({ error: "host not allowed" }, { status: 502 });
+  }
+  return NextResponse.json({ error: "upstream_unreachable" }, { status: 502 });
+}
 
 async function openRouterModels(apiKey: string) {
   const r = await fetch("https://openrouter.ai/api/v1/models", {
@@ -74,7 +81,6 @@ export async function GET(
     }
     return NextResponse.json({ error: "unknown provider" }, { status: 400 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return upstreamErrorResponse(err);
   }
 }
