@@ -14,11 +14,14 @@ import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { inngest } from "@/lib/inngest/client";
 import { requireUser } from "@/lib/auth/server";
+import { assertSameOrigin } from "@/lib/api/csrf";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
   const { id: sessionId } = await params;
 

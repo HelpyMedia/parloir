@@ -14,11 +14,14 @@ import * as schema from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
+import { assertSameOrigin } from "@/lib/api/csrf";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
 
   const limited = await withRateLimit(

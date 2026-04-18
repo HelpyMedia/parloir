@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
+import { assertSameOrigin } from "@/lib/api/csrf";
 import {
   deleteCredential,
   deleteLocalUrl,
@@ -8,9 +9,11 @@ import {
 } from "@/lib/credentials/service";
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
   const { provider } = await params;
   if (isCloudProvider(provider)) {

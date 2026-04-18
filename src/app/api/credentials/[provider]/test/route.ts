@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/server";
 import { isCloudProvider, isLocalProvider, normalizeLocalBaseUrl, type LocalProvider } from "@/lib/credentials/service";
 import { safeFetch, SsrfBlockedError } from "@/lib/net/safe-fetch";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
+import { assertSameOrigin } from "@/lib/api/csrf";
 
 const TestBody = z.object({
   apiKey: z.string().optional(),
@@ -72,6 +73,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
 
   const limited = await withRateLimit(

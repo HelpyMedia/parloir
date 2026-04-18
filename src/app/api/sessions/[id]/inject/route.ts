@@ -13,11 +13,14 @@ import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/server";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
+import { assertSameOrigin } from "@/lib/api/csrf";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   // Auth before body parsing so auth errors don't get swallowed as 500s.
   const user = await requireUser();
 

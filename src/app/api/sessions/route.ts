@@ -22,6 +22,7 @@ import { DEFAULT_PROTOCOL } from "@/lib/orchestrator/types";
 import { requireUser } from "@/lib/auth/server";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 import { respondServerError } from "@/lib/api/errors";
+import { assertSameOrigin } from "@/lib/api/csrf";
 
 // Provider prefixes accepted as model override values.
 const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
@@ -46,6 +47,8 @@ const CreateSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   // Auth check before any DB work so auth errors surface as 401/redirect, not 500.
   const user = await requireUser();
 

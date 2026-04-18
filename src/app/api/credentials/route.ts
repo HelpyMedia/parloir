@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
+import { assertSameOrigin } from "@/lib/api/csrf";
 import {
   CLOUD_PROVIDERS,
   LOCAL_PROVIDERS,
@@ -35,6 +36,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
   const body = await req.json();
   const parsed = UpsertSchema.safeParse(body);
