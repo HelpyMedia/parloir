@@ -28,6 +28,11 @@ import type { ProviderContext } from "@/lib/orchestrator/types";
 import { normalizeLocalBaseUrl } from "@/lib/credentials/service";
 
 function devInheritsEnv(): boolean {
+  // Belt-and-braces: even if the env var is somehow set in production,
+  // refuse to honor it. assertProdConfig() in src/lib/config/assert-prod.ts
+  // also throws at boot when this is set, so in practice this branch is
+  // only hit in development or tests.
+  if (process.env.NODE_ENV === "production") return false;
   return process.env.PARLOIR_DEV_INHERIT_ENV === "1";
 }
 

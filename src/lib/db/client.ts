@@ -12,6 +12,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as schema from "./schema";
 import type { Turn, Session, SynthesisArtifact, HumanInjection, Phase } from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
+import "@/lib/config/assert-prod";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
