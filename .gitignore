@@ -107,3 +107,5 @@ id_rsa.pub
 /uploads/
 # Persona templates owned by users (DB is source of truth)
 /personas/local/
+# Agent tooling scratch file — not part of the repo contract
+AGENTS.md
