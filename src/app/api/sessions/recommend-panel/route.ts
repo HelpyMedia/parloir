@@ -10,18 +10,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
+import { assertSameOrigin } from "@/lib/api/csrf";
 import { loadProviderContext } from "@/lib/credentials/context";
 import { listTemplatePersonas } from "@/lib/personas";
 import { pickClassifierModelChain } from "@/lib/providers/defaults";
 import { buildAllowedOverrides } from "@/lib/recommender/allowed-overrides";
 import { recommendPanel } from "@/lib/recommender/panel";
+import { RATE_LIMITS, withRateLimit } from "@/lib/rate-limit/token-bucket";
 
 const BodySchema = z.object({
   question: z.string().min(10).max(4000),
 });
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req);
+  if (csrf) return csrf;
   const user = await requireUser();
+
+  const limited = await withRateLimit(
+    req,
+    "session:recommend-panel",
+    RATE_LIMITS.recommendPanel,
+    user.id,
+    async () => null,
+  );
+  if (limited instanceof NextResponse) return limited;
 
   let body: unknown;
   try {

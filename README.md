@@ -48,6 +48,7 @@ cp .env.example .env.local
 pnpm db:up                                              # start Postgres via docker compose
 psql $DATABASE_URL -f db/migrations/0000_setup.sql      # install pgvector (required before migrate)
 pnpm db:migrate                                         # apply schema
+pnpm db:seed                                            # optional in dev: sync template personas + create dev user
 
 # Two terminals:
 pnpm inngest:dev    # local workflow runner
@@ -55,6 +56,10 @@ pnpm dev            # Next.js
 ```
 
 Open http://localhost:3000 and start a session.
+
+Template personas are auto-synced into the DB the first time a session is
+created, so `pnpm db:seed` is recommended for development convenience but is
+not required for a normal self-hosted signup flow.
 
 ## Architecture
 
@@ -97,6 +102,15 @@ Parloir is fully open source and self-hostable. The entire deliberation engine â
 A managed hosted version is also planned at [parloir.dev](https://parloir.dev) for teams who'd rather not run Postgres, Inngest workers, and provider accounts themselves. The hosted version is a deployed instance of this same codebase â€” it doesn't hold back features. What you pay for is managed infrastructure, uptime, support, and eventual team-collaboration features designed for organizations running many sessions at scale.
 
 If you self-host and build something you find useful, we'd love to hear about it.
+
+## Deployment notes
+
+- Production boot is intentionally strict: set `INNGEST_SIGNING_KEY`,
+  `BETTER_AUTH_URL` to an `https://` origin, and a 32-byte base64
+  `PARLOIR_ENCRYPTION_KEY`.
+- Current request rate limiting is in-memory and intended for single-instance
+  self-hosting. If you deploy multiple app instances, replace it with a
+  shared store such as Redis before treating it as internet-facing SaaS.
 
 ## Contributing
 

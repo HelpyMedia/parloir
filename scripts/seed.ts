@@ -8,8 +8,7 @@
 
 import { db } from "../src/lib/db/client";
 import * as schema from "../src/lib/db/schema";
-import { listTemplatePersonas } from "../src/lib/personas";
-import { sql } from "drizzle-orm";
+import { syncTemplatePersonas } from "../src/lib/personas/sync";
 
 // Real users now go through Better Auth signup. The dev user only exists in
 // development so scripts/seed.ts can still insert sessions directly for
@@ -31,37 +30,7 @@ async function main() {
       .onConflictDoNothing();
   }
 
-  const personas = await listTemplatePersonas();
-  for (const p of personas) {
-    await db
-      .insert(schema.personas)
-      .values({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        systemPrompt: p.systemPrompt,
-        model: p.model,
-        temperature: p.temperature ?? 0.5,
-        toolIds: p.toolIds ?? [],
-        ragSourceIds: p.ragSourceIds ?? [],
-        tags: p.tags ?? [],
-        visibility: "public",
-      })
-      .onConflictDoUpdate({
-        target: schema.personas.id,
-        set: {
-          name: p.name,
-          role: p.role,
-          systemPrompt: p.systemPrompt,
-          model: p.model,
-          temperature: p.temperature ?? 0.5,
-          toolIds: p.toolIds ?? [],
-          ragSourceIds: p.ragSourceIds ?? [],
-          tags: p.tags ?? [],
-          updatedAt: sql`now()`,
-        },
-      });
-  }
+  const personas = await syncTemplatePersonas();
 
   const count = personas.length;
   const userNote = process.env.NODE_ENV === "development" ? `1 dev user (${DEV_USER_ID}) and ` : "";

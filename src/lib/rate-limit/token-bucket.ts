@@ -107,6 +107,7 @@ export async function withRateLimit<T>(
 export const RATE_LIMITS = {
   authAttempt: { capacity: 10, refillPerSec: 10 / 60 }, // 10/min, per IP
   credentialTest: { capacity: 10, refillPerSec: 10 / 60 }, // 10/min, per user
+  recommendPanel: { capacity: 10, refillPerSec: 10 / 60 }, // 10/min, per user
   sessionWrite: { capacity: 10, refillPerSec: 10 / 60 }, // 10/min, per user
   inject: { capacity: 20, refillPerSec: 20 / 60 }, // 20/min, per user
 } as const;

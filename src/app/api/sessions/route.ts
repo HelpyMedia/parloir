@@ -23,9 +23,17 @@ import { requireUser } from "@/lib/auth/server";
 import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 import { respondServerError } from "@/lib/api/errors";
 import { assertSameOrigin } from "@/lib/api/csrf";
+import { syncTemplatePersonas } from "@/lib/personas/sync";
 
 // Provider prefixes accepted as model override values.
 const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
+
+class SessionCreateValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionCreateValidationError";
+  }
+}
 
 const CreateSchema = z.object({
   title: z.string().min(1).max(200),
@@ -78,10 +86,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
   const input = parsed.data;
+  const uniquePersonaIds = [...new Set(input.personaIds)];
+
+  if (uniquePersonaIds.length !== input.personaIds.length) {
+    return NextResponse.json(
+      { error: "personaIds must not contain duplicates" },
+      { status: 400 },
+    );
+  }
 
   // Validate provider prefixes on any model overrides.
   if (input.participantOverrides) {
     for (const [personaId, modelId] of Object.entries(input.participantOverrides)) {
+      if (!uniquePersonaIds.includes(personaId)) {
+        return NextResponse.json(
+          {
+            error: `Invalid model override for persona "${personaId}": the persona is not part of this session.`,
+          },
+          { status: 400 },
+        );
+      }
       if (!VALID_PROVIDER_PREFIX.test(modelId)) {
         return NextResponse.json(
           {
@@ -96,30 +120,49 @@ export async function POST(req: NextRequest) {
   const protocol = { ...DEFAULT_PROTOCOL, ...(input.protocol ?? {}) };
 
   try {
-    const [session] = await db
-      .insert(schema.sessions)
-      .values({
-        title: input.title,
-        question: input.question,
-        context: input.context,
-        protocol,
-        createdBy: user.id,
-        participantModelOverrides: input.participantOverrides ?? {},
-        status: "setup",
-      })
-      .returning();
+    const session = await db.transaction(async (tx) => {
+      const templates = await syncTemplatePersonas(tx);
+      const knownPersonaIds = new Set(templates.map((persona) => persona.id));
+      const unknownPersonaIds = uniquePersonaIds.filter(
+        (personaId) => !knownPersonaIds.has(personaId),
+      );
 
-    await db.insert(schema.participants).values(
-      input.personaIds.map((personaId, seatIndex) => ({
-        sessionId: session.id,
-        personaId,
-        seatIndex,
-        silenced: false,
-      })),
-    );
+      if (unknownPersonaIds.length > 0) {
+        throw new SessionCreateValidationError(
+          `Unknown persona ID(s): ${unknownPersonaIds.join(", ")}`,
+        );
+      }
+
+      const [createdSession] = await tx
+        .insert(schema.sessions)
+        .values({
+          title: input.title,
+          question: input.question,
+          context: input.context,
+          protocol,
+          createdBy: user.id,
+          participantModelOverrides: input.participantOverrides ?? {},
+          status: "setup",
+        })
+        .returning();
+
+      await tx.insert(schema.participants).values(
+        uniquePersonaIds.map((personaId, seatIndex) => ({
+          sessionId: createdSession.id,
+          personaId,
+          seatIndex,
+          silenced: false,
+        })),
+      );
+
+      return createdSession;
+    });
 
     return NextResponse.json({ session }, { status: 201 });
   } catch (err) {
+    if (err instanceof SessionCreateValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     return respondServerError("POST /api/sessions", err);
   }
 }
