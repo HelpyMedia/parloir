@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { NewSessionForm } from "@/components/session-new/NewSessionForm";
 import { listTemplatePersonas } from "@/lib/personas";
 import { requireUser } from "@/lib/auth/server";

@@ -1,17 +1,35 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth/client";
 
 interface AuthFormProps {
   mode: "signin" | "signup";
 }
 
+/**
+ * Only accept same-origin paths that start with a single `/`. This prevents
+ * attacker-controlled `?next=https://evil.tld` or `?next=//evil.tld` values.
+ * We also strip any locale prefix because `router.push` re-adds the current
+ * locale — if the attacker's path is `/en/evil` it still starts with `/`, but
+ * router.push treats `/evil` and `/en/evil` identically under the locale
+ * segment, so the final URL stays on our origin.
+ */
+function sanitizeNext(raw: string | null): string {
+  if (!raw) return "/sessions";
+  if (!raw.startsWith("/")) return "/sessions";
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/sessions";
+  return raw;
+}
+
 export function AuthForm({ mode }: AuthFormProps) {
+  const t = useTranslations("Auth");
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/sessions/new";
+  const next = sanitizeNext(searchParams.get("next"));
+  const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,19 +51,18 @@ export function AuthForm({ mode }: AuthFormProps) {
           name,
         });
         if (result.error) {
-          setError(result.error.message ?? "Sign up failed.");
+          setError(result.error.message ?? t("signUpFailed"));
         } else {
-          window.location.href = next;
+          router.push(next);
+          router.refresh();
         }
       } else {
-        const result = await authClient.signIn.email({
-          email,
-          password,
-        });
+        const result = await authClient.signIn.email({ email, password });
         if (result.error) {
-          setError(result.error.message ?? "Sign in failed.");
+          setError(result.error.message ?? t("signInFailed"));
         } else {
-          window.location.href = next;
+          router.push(next);
+          router.refresh();
         }
       }
     });
@@ -59,16 +76,14 @@ export function AuthForm({ mode }: AuthFormProps) {
         borderColor: "var(--color-border-subtle)",
       }}
     >
-      {/* Heading */}
       <h1
         className="font-display text-2xl mb-6"
         style={{ color: "var(--color-text-primary)" }}
       >
-        {isSignUp ? "Create account" : "Sign in"}
+        {isSignUp ? t("signUpTitle") : t("signInTitle")}
       </h1>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {/* Name field — signup only */}
         {isSignUp && (
           <div className="space-y-1.5">
             <label
@@ -76,7 +91,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               className="block font-mono text-[11px] uppercase tracking-[0.18em]"
               style={{ color: "var(--color-text-dim)" }}
             >
-              Name
+              {t("nameLabel")}
             </label>
             <input
               id="name"
@@ -101,14 +116,13 @@ export function AuthForm({ mode }: AuthFormProps) {
           </div>
         )}
 
-        {/* Email field */}
         <div className="space-y-1.5">
           <label
             htmlFor="email"
             className="block font-mono text-[11px] uppercase tracking-[0.18em]"
             style={{ color: "var(--color-text-dim)" }}
           >
-            Email
+            {t("emailLabel")}
           </label>
           <input
             id="email"
@@ -132,14 +146,13 @@ export function AuthForm({ mode }: AuthFormProps) {
           />
         </div>
 
-        {/* Password field */}
         <div className="space-y-1.5">
           <label
             htmlFor="password"
             className="block font-mono text-[11px] uppercase tracking-[0.18em]"
             style={{ color: "var(--color-text-dim)" }}
           >
-            Password
+            {t("passwordLabel")}
           </label>
           <input
             id="password"
@@ -163,7 +176,6 @@ export function AuthForm({ mode }: AuthFormProps) {
           />
         </div>
 
-        {/* Error message */}
         {error && (
           <p
             className="text-sm font-mono"
@@ -174,7 +186,6 @@ export function AuthForm({ mode }: AuthFormProps) {
           </p>
         )}
 
-        {/* Submit button */}
         <button
           type="submit"
           disabled={isPending}
@@ -186,39 +197,38 @@ export function AuthForm({ mode }: AuthFormProps) {
         >
           {isPending
             ? isSignUp
-              ? "Creating…"
-              : "Signing in…"
+              ? t("signUpPending")
+              : t("signInPending")
             : isSignUp
-              ? "Create account"
-              : "Sign in"}
+              ? t("signUpSubmit")
+              : t("signInSubmit")}
         </button>
       </form>
 
-      {/* Toggle link */}
       <p
         className="mt-6 text-center text-sm"
         style={{ color: "var(--color-text-muted)" }}
       >
         {isSignUp ? (
           <>
-            Already have an account?{" "}
+            {t("alreadyHaveAccount")}{" "}
             <Link
               href="/signin"
               className="transition-colors hover:underline"
               style={{ color: "var(--color-spot-warm)" }}
             >
-              Sign in
+              {t("signInLink")}
             </Link>
           </>
         ) : (
           <>
-            Need an account?{" "}
+            {t("needAccount")}{" "}
             <Link
               href="/signup"
               className="transition-colors hover:underline"
               style={{ color: "var(--color-spot-warm)" }}
             >
-              Sign up
+              {t("signUpLink")}
             </Link>
           </>
         )}

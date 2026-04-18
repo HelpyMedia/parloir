@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import type { Persona } from "@/lib/orchestrator/types";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
 import { LocalOnlyReliabilityNote } from "./LocalOnlyReliabilityNote";

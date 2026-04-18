@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Link } from "@/i18n/navigation";
 
 interface ProviderModel {
   id: string;
@@ -116,13 +117,13 @@ export function ModelPickerInline({
           {isNotConnected ? (
             <>
               No provider connected for {provider}.{" "}
-              <a
+              <Link
                 href="/settings"
                 className="underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 Go to Settings
-              </a>
+              </Link>
               .
             </>
           ) : (

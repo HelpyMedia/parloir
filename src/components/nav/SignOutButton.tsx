@@ -1,10 +1,12 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth/client";
 
 export function SignOutButton() {
+  const t = useTranslations("Nav");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -23,7 +25,7 @@ export function SignOutButton() {
       disabled={pending}
       className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-spot-warm)] disabled:opacity-50"
     >
-      {pending ? "Signing out…" : "Sign out"}
+      {pending ? t("signingOut") : t("signOut")}
     </button>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
 import { SignOutButton } from "./SignOutButton";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface NavUser {
   id: string;
@@ -12,15 +13,18 @@ interface NavUser {
 
 const HIDE_PATHS = [/^\/signin(\/.*)?$/, /^\/signup(\/.*)?$/];
 
-const LINKS = [
-  { href: "/", label: "Sessions" },
-  { href: "/sessions/new", label: "New session" },
-  { href: "/settings", label: "Settings" },
-];
-
 export function GlobalNav({ user }: { user: NavUser | null }) {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
   if (HIDE_PATHS.some((r) => r.test(pathname))) return null;
+
+  const links = user
+    ? ([
+        { href: "/sessions", label: t("sessions") },
+        { href: "/sessions/new", label: t("newSession") },
+        { href: "/settings", label: t("settings") },
+      ] as const)
+    : [];
 
   function isActive(href: string): boolean {
     if (href === "/") return pathname === "/";
@@ -58,12 +62,12 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
               strokeWidth="2"
             />
           </svg>
-          Parloir
+          {t("brand")}
         </Link>
 
         {user ? (
           <nav className="flex items-center gap-6">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
@@ -81,15 +85,23 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
               {user.email}
             </span>
             <SignOutButton />
+            <LanguageSwitcher />
           </nav>
         ) : (
           <nav className="flex items-center gap-4">
             <Link
               href="/signin"
+              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              {t("signIn")}
+            </Link>
+            <Link
+              href="/signup"
               className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-spot-warm)] hover:underline"
             >
-              Sign in
+              {t("signUp")}
             </Link>
+            <LanguageSwitcher />
           </nav>
         )}
       </div>
