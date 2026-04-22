@@ -12,7 +12,7 @@
  *
  * Returns null when no configured provider can back this model.
  */
-import type { ProviderContext } from "@/lib/orchestrator/types";
+import type { ProviderContext } from "../orchestrator/types";
 import { availableProviders } from "./registry";
 
 const NATIVE_PREFIXES = new Set(["anthropic", "openai", "google"]);

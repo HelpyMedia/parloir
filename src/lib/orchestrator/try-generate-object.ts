@@ -13,7 +13,7 @@
 
 import { generateObject, type ModelMessage } from "ai";
 import type { z } from "zod";
-import { resolveModel } from "@/lib/providers/registry";
+import { resolveModel } from "../providers/registry";
 import type { ProviderContext } from "./types";
 
 export interface TryGenerateObjectResult<T> {
@@ -21,12 +21,25 @@ export interface TryGenerateObjectResult<T> {
   modelId: string;
 }
 
+/**
+ * Distinguishes classifier / consensus / synthesis calls from persona-turn
+ * calls so hosted billing can tag the provider attempt. The default is
+ * `"primary"`; hosted adapters pass `"classifier"`, `"consensus"`, or
+ * `"synthesis"` where relevant. Pure-OSS callers can ignore this argument.
+ */
+export type TryGenerateObjectAttemptKind =
+  | "primary"
+  | "classifier"
+  | "consensus"
+  | "synthesis";
+
 export async function tryGenerateObject<T>(params: {
   modelChain: string[];
   ctx: ProviderContext;
   schema: z.ZodType<T>;
   temperature?: number;
   messages: ModelMessage[];
+  attemptKind?: TryGenerateObjectAttemptKind;
 }): Promise<TryGenerateObjectResult<T> | null> {
   const { modelChain, ctx, schema, temperature, messages } = params;
   const errors: Array<{ modelId: string; err: string }> = [];
@@ -34,7 +47,9 @@ export async function tryGenerateObject<T>(params: {
   for (const modelId of modelChain) {
     try {
       const result = await generateObject({
-        model: resolveModel(modelId, ctx),
+        model: ctx.resolveModel
+          ? ctx.resolveModel(modelId)
+          : resolveModel(modelId, ctx),
         schema,
         temperature,
         messages,

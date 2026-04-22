@@ -48,6 +48,12 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
       };
     }
 
+    case "phase_exit":
+      // The next phase_enter drives UI state. phase_exit exists for
+      // downstream consumers (hosted billing, telemetry) that need
+      // explicit start/end boundaries.
+      return state;
+
     case "turn_start": {
       const personaState = updatePersona(state.personaState, event.speakerId, {
         status: "speaking",

@@ -17,13 +17,13 @@
  */
 
 import { streamText, stepCountIs } from "ai";
-import { resolveModel } from "@/lib/providers/registry";
+import { resolveModel } from "../providers/registry";
 import {
   pickJudgeModelChain,
   pickSynthesizerModelChain,
-} from "@/lib/providers/defaults";
-import { loadPersona } from "@/lib/personas";
-import { buildToolset } from "@/lib/tools";
+} from "../providers/defaults";
+import { loadPersona } from "../personas";
+import { buildToolset } from "../tools";
 import { evaluateConsensus } from "./consensus";
 import { extractCostUsd } from "./pricing";
 import { synthesize } from "./synthesis";
@@ -291,6 +291,29 @@ export async function runSynthesis(
 }
 
 // ─── Top-level: run the full debate ─────────────────────────────────────────
+
+/**
+ * Wrap a phase call so its `phase_exit` event fires on both success and
+ * error. Downstream consumers (cloud adapter's `afterPhase`, self-host
+ * observers) use `phase_exit` as the boundary signal — see the orchestrator
+ * adapter integration doc's "Phase boundary work" section.
+ */
+async function withPhaseExit<T>(
+  sink: StreamSink,
+  phase: Phase,
+  round: number,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    const result = await fn();
+    await sink.emit({ type: "phase_exit", phase, round, reason: "normal" });
+    return result;
+  } catch (err) {
+    await sink.emit({ type: "phase_exit", phase, round, reason: "error" });
+    throw err;
+  }
+}
+
 export async function runDebate(
   session: Session,
   participants: Participant[],
@@ -304,7 +327,9 @@ export async function runDebate(
     // opening — agents must start blind. We drain after, before critique.
     await storage.updateSession(session.id, { status: "opening", currentRound: 0 });
     session.currentRound = 0;
-    await runOpeningPhase(session, participants, ctx, storage, sink);
+    await withPhaseExit(sink, "opening", 0, () =>
+      runOpeningPhase(session, participants, ctx, storage, sink),
+    );
 
     await drainInjectionsAndWait(session, "opening", storage, sink, controlPlane);
 
@@ -318,19 +343,23 @@ export async function runDebate(
       await storage.updateSession(session.id, { status: "critique", currentRound: round });
       // Refresh in-memory currentRound so drain places human turns in this round.
       session.currentRound = round;
-      await runCritiqueRound(
-        session,
-        participants,
-        ctx,
-        round,
-        storage,
-        sink,
-        controlPlane,
+      await withPhaseExit(sink, "critique", round, () =>
+        runCritiqueRound(
+          session,
+          participants,
+          ctx,
+          round,
+          storage,
+          sink,
+          controlPlane,
+        ),
       );
 
       await drainInjectionsAndWait(session, "critique", storage, sink, controlPlane);
 
-      const report = await runConsensusCheck(session, participants, ctx, storage, sink);
+      const report = await withPhaseExit(sink, "consensus_check", round, () =>
+        runConsensusCheck(session, participants, ctx, storage, sink),
+      );
 
       // Honor the judge's explicit "stop" recommendation even when the
       // numeric consensusLevel sits below the threshold — this is how the
@@ -360,14 +389,16 @@ export async function runDebate(
           sink,
           controlPlane,
         );
-        await runAdaptiveRound(
-          session,
-          participants,
-          ctx,
-          report,
-          storage,
-          sink,
-          controlPlane,
+        await withPhaseExit(sink, "adaptive_round", session.currentRound, () =>
+          runAdaptiveRound(
+            session,
+            participants,
+            ctx,
+            report,
+            storage,
+            sink,
+            controlPlane,
+          ),
         );
         break;
       }
@@ -376,7 +407,9 @@ export async function runDebate(
     // Phase 5: synthesis
     await drainInjectionsAndWait(session, "synthesis", storage, sink, controlPlane);
     await storage.updateSession(session.id, { status: "synthesis" });
-    await runSynthesis(session, participants, ctx, storage, sink);
+    await withPhaseExit(sink, "synthesis", session.currentRound, () =>
+      runSynthesis(session, participants, ctx, storage, sink),
+    );
 
     await storage.updateSession(session.id, {
       status: "completed",
@@ -414,7 +447,9 @@ async function runAgentTurn(params: {
   // participant without editing the persona template.
   const overrideModel = session.participantModelOverrides?.[persona.id];
   const modelId = overrideModel ?? persona.model;
-  const model = resolveModel(modelId, ctx);
+  const model = ctx.resolveModel
+    ? ctx.resolveModel(modelId)
+    : resolveModel(modelId, ctx);
   const tools = await buildToolset(persona.toolIds, session.id);
 
   await sink.emit({

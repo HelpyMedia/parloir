@@ -18,7 +18,7 @@
 
 import { generateText, type ModelMessage } from "ai";
 import { z } from "zod";
-import { resolveModel } from "@/lib/providers/registry";
+import { resolveModel } from "../providers/registry";
 import { tryGenerateObject } from "./try-generate-object";
 import type { Session, Turn, SynthesisArtifact, ProviderContext } from "./types";
 import type { StreamSink } from "./protocol";
@@ -106,7 +106,9 @@ export async function synthesize(params: {
   for (const modelId of synthesizerModelChain) {
     try {
       const { text } = await generateText({
-        model: resolveModel(modelId, ctx),
+        model: ctx.resolveModel
+          ? ctx.resolveModel(modelId)
+          : resolveModel(modelId, ctx),
         temperature: 0.3,
         messages,
       });

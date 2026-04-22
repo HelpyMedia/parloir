@@ -40,6 +40,9 @@ export const phaseEnum = pgEnum("phase", [
   "completed",
   "paused",
   "failed",
+  "quota_exhausted",
+  "estimator_error",
+  "aborted",
 ]);
 
 export const speakerRoleEnum = pgEnum("speaker_role", [

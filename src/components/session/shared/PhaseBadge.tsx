@@ -10,6 +10,9 @@ const LABEL: Record<Phase, string> = {
   completed: "Completed",
   paused: "Paused",
   failed: "Failed",
+  quota_exhausted: "Quota exhausted",
+  estimator_error: "Estimator error",
+  aborted: "Aborted",
 };
 
 const ACCENT: Record<Phase, string> = {
@@ -22,6 +25,9 @@ const ACCENT: Record<Phase, string> = {
   completed: "var(--color-consensus)",
   paused: "var(--color-text-muted)",
   failed: "var(--color-danger)",
+  quota_exhausted: "var(--color-danger)",
+  estimator_error: "var(--color-danger)",
+  aborted: "var(--color-text-muted)",
 };
 
 export function PhaseBadge({ phase, round }: { phase: Phase; round?: number }) {

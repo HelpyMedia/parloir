@@ -10,6 +10,9 @@ const LABEL: Record<Phase, string> = {
   completed: "Completed",
   paused: "Paused",
   failed: "Failed",
+  quota_exhausted: "Quota exhausted",
+  estimator_error: "Estimator error",
+  aborted: "Aborted",
 };
 
 export function PhaseDivider({ phase, round }: { phase: Phase; round: number }) {

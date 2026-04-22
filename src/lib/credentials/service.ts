@@ -4,35 +4,26 @@ import * as schema from "@/lib/db/schema";
 import { encrypt, decrypt } from "@/lib/crypto/keyring";
 import { assertPublicHttpUrl, SsrfBlockedError } from "@/lib/net/safe-fetch";
 
-export type CloudProvider = "openrouter" | "anthropic" | "openai" | "google";
-export type LocalProvider = "ollama" | "lmstudio";
+// Pure provider-kind constants and URL normalization live in ./local-url so
+// dependency-lean consumers (provider registry, parloir-cloud adapter) can
+// import them without pulling in the full credential persistence surface.
+export {
+  CLOUD_PROVIDERS,
+  LOCAL_PROVIDERS,
+  isCloudProvider,
+  isLocalProvider,
+  normalizeLocalBaseUrl,
+  type CloudProvider,
+  type LocalProvider,
+} from "./local-url";
 
-export const CLOUD_PROVIDERS: readonly CloudProvider[] = ["openrouter", "anthropic", "openai", "google"];
-export const LOCAL_PROVIDERS: readonly LocalProvider[] = ["ollama", "lmstudio"];
-
-export function isCloudProvider(v: string): v is CloudProvider {
-  return (CLOUD_PROVIDERS as readonly string[]).includes(v);
-}
-export function isLocalProvider(v: string): v is LocalProvider {
-  return (LOCAL_PROVIDERS as readonly string[]).includes(v);
-}
-
-/**
- * Normalize a local-provider base URL to its root form (no trailing `/api`,
- * `/v1`, or slash). All consumers — the test route, models catalog, and the
- * provider registry — append the appropriate suffix themselves, so we store
- * the root only. This makes user input forgiving: `http://localhost:11434`,
- * `http://localhost:11434/`, and `http://localhost:11434/api` all normalize
- * to the same value.
- */
-export function normalizeLocalBaseUrl(provider: LocalProvider, url: string): string {
-  const suffixes = provider === "ollama" ? ["/api"] : ["/v1"];
-  let trimmed = url.trim().replace(/\/+$/, "");
-  for (const s of suffixes) {
-    if (trimmed.toLowerCase().endsWith(s)) trimmed = trimmed.slice(0, -s.length);
-  }
-  return trimmed;
-}
+import {
+  isCloudProvider,
+  isLocalProvider,
+  normalizeLocalBaseUrl,
+  type CloudProvider,
+  type LocalProvider,
+} from "./local-url";
 
 export async function upsertCredential(userId: string, provider: CloudProvider, apiKey: string): Promise<void> {
   const ct = encrypt(apiKey);

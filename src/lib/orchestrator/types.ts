@@ -17,7 +17,10 @@ export type Phase =
   | "synthesis" // Phase 5: secretary produces deliverable
   | "completed"
   | "paused" // Human-in-the-loop pause
-  | "failed";
+  | "failed"
+  | "quota_exhausted" // Hosted: out of credits mid-run; terminal for cloud
+  | "estimator_error" // Hosted: reservation estimator could not run; terminal for cloud
+  | "aborted"; // Hosted: workflow aborted by an authorized actor
 
 /** Who produced a turn. */
 export type SpeakerRole = "agent" | "human" | "judge" | "secretary";
@@ -95,10 +98,16 @@ export interface Participant {
  * Per-request provider credentials + local server URLs, loaded once per
  * debate run from the authenticated user's configured settings. Threaded
  * through the orchestrator so `resolveModel` can use the right keys.
+ *
+ * Hosted deployments may supply an optional `resolveModel` override. When
+ * set, the orchestrator calls it instead of the default registry resolver.
+ * The callback captures any per-attempt context it needs (billing middleware,
+ * request metadata) in its closure; its only argument is the model id.
  */
 export interface ProviderContext {
   cloud: Partial<Record<"openrouter" | "anthropic" | "openai" | "google", string>>;
   local: Partial<Record<"ollama" | "lmstudio", string>>;
+  resolveModel?: (modelId: string) => import("ai").LanguageModel;
 }
 
 /** Protocol configuration — per session. */
@@ -190,6 +199,12 @@ export interface SynthesisArtifact {
 /** Stream event emitted to the UI during a live session. */
 export type StreamEvent =
   | { type: "phase_enter"; phase: Phase; round: number }
+  | {
+      type: "phase_exit";
+      phase: Phase;
+      round: number;
+      reason: "normal" | "paused" | "error";
+    }
   | { type: "turn_start"; speakerId: string; speakerName: string; phase: Phase }
   | { type: "turn_delta"; speakerId: string; textDelta: string }
   | { type: "turn_complete"; turn: Turn }

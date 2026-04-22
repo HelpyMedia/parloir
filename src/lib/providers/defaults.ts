@@ -11,7 +11,7 @@
  */
 
 import { availableProviders } from "./registry";
-import type { ProviderContext } from "@/lib/orchestrator/types";
+import type { ProviderContext } from "../orchestrator/types";
 
 const JUDGE_PREFERENCES: Array<{ provider: string; modelId: string }> = [
   { provider: "anthropic", modelId: "anthropic/claude-haiku-4-5" },

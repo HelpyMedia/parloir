@@ -24,8 +24,8 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { LanguageModel } from "ai";
-import type { ProviderContext } from "@/lib/orchestrator/types";
-import { normalizeLocalBaseUrl } from "@/lib/credentials/service";
+import type { ProviderContext } from "../orchestrator/types";
+import { normalizeLocalBaseUrl } from "../credentials/local-url";
 
 function devInheritsEnv(): boolean {
   // Belt-and-braces: even if the env var is somehow set in production,
