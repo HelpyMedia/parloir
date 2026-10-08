@@ -13,6 +13,7 @@ import { assertSameOrigin } from "@/lib/api/csrf";
 import { loadProviderContext } from "@/lib/credentials/context";
 import { listTemplatePersonas } from "@/lib/personas";
 import { pickClassifier } from "@/lib/providers/openrouter-catalog";
+import { MODEL_TIERS } from "@/lib/models/tiers";
 import { getCatalogWithHealth } from "@/lib/models/catalog";
 import { buildShortlist } from "@/lib/recommender/allowed-overrides";
 import { recommendPanel } from "@/lib/recommender/panel";
@@ -20,6 +21,7 @@ import { RATE_LIMITS, withRateLimit } from "@/lib/rate-limit/token-bucket";
 
 const BodySchema = z.object({
   question: z.string().min(10).max(4000),
+  tier: z.enum(MODEL_TIERS).optional(),
   freeOnly: z.boolean().optional().default(false),
 });
 
@@ -57,8 +59,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { question, freeOnly } = parsed.data;
-  const shortlist = buildShortlist(catalog, freeOnly);
-  const modelChain = pickClassifier(catalog, freeOnly);
+  const tier = parsed.data.tier ?? (freeOnly ? "free" : "low");
+  const shortlist = buildShortlist(catalog, tier);
+  const modelChain = pickClassifier(catalog, tier);
   if (shortlist.length < 2 || modelChain.length === 0) {
     return new NextResponse(null, { status: 204 });
   }

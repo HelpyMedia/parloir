@@ -8,6 +8,8 @@
 // Model ids containing "broken" return 429 (exercise skipped turns);
 // "gated" return OpenRouter's 403 for free models limited to partner apps;
 // "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts).
+// GET /api/v1/key reports a free-tier account when the key contains
+// "freetier", otherwise a paid one with $25 left.
 import http from "node:http";
 
 const PORT = Number(process.env.PORT ?? 4010);
@@ -21,6 +23,10 @@ const models = [
   ["delta/mini:free", "Delta: Mini (free)", "0", "0", null, []],
   ["epsilon/broken:free", "Epsilon: Broken (free)", "0", "0", 30, []],
   ["theta/gated:free", "Theta: Gated (free)", "0", "0", 55, []],
+  ["kappa/value-chat", "Kappa: Value Chat", "0.0000002", "0.0000008", 42, ["response_format"]],
+  ["lambda/budget", "Lambda: Budget", "0.0000005", "0.000002", 38, ["structured_outputs"]],
+  ["mu/mid-pro", "Mu: Mid Pro", "0.0000015", "0.000008", 58, ["structured_outputs"]],
+  ["nu/frontier-max", "Nu: Frontier Max", "0.00001", "0.00004", 70, ["structured_outputs"]],
   ["iota/overloaded:free", "Iota: Overloaded (free)", "0", "0", 20, []],
   ["zeta/tiny", "Zeta: Tiny 8K", "0.0000001", "0.0000001", 10, []],
 ].map(([id, name, prompt, completion, iq, params], i) => ({
@@ -83,6 +89,14 @@ const calls = [];
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
+    if (req.method === "GET" && url.pathname === "/api/v1/key") {
+      const freeTier = (req.headers.authorization ?? "").includes("freetier");
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ data: {
+        label: "mock", is_free_tier: freeTier, limit: freeTier ? null : 25,
+        limit_remaining: freeTier ? null : 25, usage: 0, usage_daily: 0,
+      } }));
+    }
     if (req.method === "GET" && url.pathname === "/api/v1/models") {
       res.writeHead(200, { "content-type": "application/json" });
       return res.end(JSON.stringify({ data: models }));
