@@ -12,6 +12,7 @@ import {
   isCloudProvider,
   isLocalProvider,
 } from "@/lib/credentials/service";
+import { allowedCloudProviders, allowedLocalProviders } from "@/lib/config/edition";
 
 const UpsertSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
   const input = parsed.data;
+  const allowed =
+    input.kind === "cloud"
+      ? (allowedCloudProviders() as readonly string[]).includes(input.provider)
+      : (allowedLocalProviders() as readonly string[]).includes(input.provider);
+  if (!allowed) {
+    return NextResponse.json({ error: "provider not available on this server" }, { status: 403 });
+  }
   if (input.kind === "cloud" && isCloudProvider(input.provider)) {
     await upsertCredential(user.id, input.provider, input.apiKey);
   } else if (input.kind === "local" && isLocalProvider(input.provider)) {

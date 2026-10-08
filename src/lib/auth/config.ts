@@ -6,7 +6,9 @@ import {
   authSessions,
   authAccounts,
   authVerifications,
+  authRateLimits,
 } from "@/lib/db/schema";
+import { emailEnabled, sendVerificationEmail } from "./email";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -18,22 +20,34 @@ export const auth = betterAuth({
       session: authSessions,
       account: authAccounts,
       verification: authVerifications,
+      rateLimit: authRateLimits,
     },
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    // On when an email provider is configured (see ./email.ts).
+    requireEmailVerification: emailEnabled(),
     minPasswordLength: 12,
     maxPasswordLength: 128,
   },
+  emailVerification: emailEnabled()
+    ? {
+        sendOnSignUp: true,
+        autoSignInAfterVerification: true,
+        sendVerificationEmail: async ({ user, url }) => {
+          await sendVerificationEmail({ to: user.email, url });
+        },
+      }
+    : undefined,
   session: { expiresIn: 60 * 60 * 24 * 30 },
-  // In-memory rate limit — single instance only, resets on restart. Good
-  // enough to deter brute-force on sign-in and mass-signup from one IP.
+  // Counters live in Postgres so the limit holds across serverless
+  // instances: deters brute-force sign-in and mass sign-up from one IP.
   rateLimit: {
     enabled: true,
     window: 60,
     max: 10,
-    storage: "memory",
+    storage: "database",
+    modelName: "rateLimit",
   },
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,

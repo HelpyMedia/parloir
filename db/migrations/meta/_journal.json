@@ -43,6 +43,13 @@
       "when": 1776447603081,
       "tag": "0005_stale_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791482520771,
+      "tag": "0006_auth_rate_limits",
+      "breakpoints": true
     }
   ]
 }
