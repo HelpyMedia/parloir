@@ -25,8 +25,16 @@ keys.
 
 1. Project → **Integrations → Inngest**. This sets `INNGEST_EVENT_KEY` and
    `INNGEST_SIGNING_KEY` and syncs `https://<domain>/api/inngest` on deploy.
-2. **Deployment Protection** must let Inngest reach `/api/inngest` on
-   production (turn protection off for production, or add Inngest's bypass).
+2. **Deployment Protection**: keep it on, and give Inngest the bypass key
+   instead of unprotecting anything.
+   - Vercel → Settings → Deployment Protection → **Protection Bypass for
+     Automation** → enable and copy the secret.
+   - Inngest dashboard → Vercel integration settings → paste it into
+     **Deployment protection key** for the project, then redeploy.
+   - Optionally set `INNGEST_SERVE_ORIGIN=https://app.parloir.dev` so Inngest
+     syncs against the custom domain instead of the `*.vercel.app` URL.
+   The custom domain is already public under Standard Protection; there is no
+   need to add it to the protection exceptions list.
 3. Capacity: Inngest's free plan allows 50k step executions a month and 5
    concurrent steps. A debate uses roughly 25–45 steps, and every turn is a
    step, so 5 concurrent steps means a handful of simultaneous debates before
@@ -43,6 +51,7 @@ keys.
 | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 32` |
 | `PARLOIR_ENCRYPTION_KEY` | output of `openssl rand -base64 32` — never change it after launch |
 | `PARLOIR_CONTACT_EMAIL` | address shown on /privacy and /terms |
+| `INNGEST_SERVE_ORIGIN` | optional, `https://app.parloir.dev` |
 | `RESEND_API_KEY` | optional; turns on email verification for sign-ups |
 | `PARLOIR_EMAIL_FROM` | e.g. `Parloir <no-reply@parloir.dev>` (domain verified in Resend) |
 
