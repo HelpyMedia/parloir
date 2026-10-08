@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CatalogModel } from "@/lib/providers/openrouter-catalog";
+import { MODEL_TIERS, type ModelTier } from "@/lib/models/tiers";
 
 /** A model as the picker shows it, whatever provider it comes from. */
 export interface PickerModel {
@@ -22,20 +23,28 @@ export interface PickerModel {
 
 export interface ModelCatalogState {
   models: PickerModel[];
-  defaults: { free: string[]; all: string[] };
+  /** Suggested panel per tier, best first. */
+  defaults: Record<ModelTier, string[]>;
   loading: boolean;
   error: string | null;
 }
 
+function emptyDefaults(): Record<ModelTier, string[]> {
+  return { free: [], low: [], medium: [], high: [] };
+}
+
 const EMPTY: ModelCatalogState = {
   models: [],
-  defaults: { free: [], all: [] },
+  defaults: emptyDefaults(),
   loading: true,
   error: null,
 };
 
-// One fetch per page load, shared by every picker on the page.
-let shared: Promise<ModelCatalogState> | null = null;
+// Shared by every picker on the page, but refreshed after a minute: client-side
+// navigation keeps this module alive, and a stale list would still offer
+// models that OpenRouter has since refused.
+const SHARED_TTL_MS = 60_000;
+let shared: { at: number; key: string; promise: Promise<ModelCatalogState> } | null = null;
 
 function fromCatalog(m: CatalogModel): PickerModel {
   return {
@@ -56,7 +65,7 @@ function fromCatalog(m: CatalogModel): PickerModel {
 
 async function load(providers: string[]): Promise<ModelCatalogState> {
   const models: PickerModel[] = [];
-  let defaults = { free: [] as string[], all: [] as string[] };
+  let defaults = emptyDefaults();
   let error: string | null = null;
 
   if (providers.includes("openrouter")) {
@@ -65,10 +74,10 @@ async function load(providers: string[]): Promise<ModelCatalogState> {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const body = (await r.json()) as {
         models: CatalogModel[];
-        defaults: { free: string[]; all: string[] };
+        defaults: Partial<Record<ModelTier, string[]>>;
       };
       models.push(...body.models.map(fromCatalog));
-      defaults = body.defaults;
+      defaults = { ...emptyDefaults(), ...body.defaults };
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -100,7 +109,8 @@ async function load(providers: string[]): Promise<ModelCatalogState> {
   }
 
   if (!providers.includes("openrouter") && models.length > 0) {
-    defaults = { free: models.map((m) => m.id), all: models.map((m) => m.id) };
+    const ids = models.map((m) => m.id);
+    defaults = Object.fromEntries(MODEL_TIERS.map((t) => [t, ids])) as Record<ModelTier, string[]>;
   }
 
   return { models, defaults, loading: false, error };
@@ -112,8 +122,10 @@ export function useModelCatalog(providers: string[]): ModelCatalogState {
 
   useEffect(() => {
     let cancelled = false;
-    shared ??= load(key.split(",").filter(Boolean));
-    void shared.then((s) => {
+    if (!shared || shared.key !== key || Date.now() - shared.at > SHARED_TTL_MS) {
+      shared = { at: Date.now(), key, promise: load(key.split(",").filter(Boolean)) };
+    }
+    void shared.promise.then((s) => {
       if (!cancelled) setState(s);
     });
     return () => {

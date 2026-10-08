@@ -8,7 +8,7 @@
  *   personaIds: string[],              // 2-5 personas
  *   protocol?: Partial<ProtocolConfig>,
  *   participantOverrides?: Record<string, string>,  // personaId → modelId
- *   freeOnly?: boolean,                // when filling missing models
+ *   tier?: "free"|"low"|"medium"|"high", // fills missing models (freeOnly: legacy)
  *   locale?: "en" | "fr",
  * }
  *
@@ -30,6 +30,7 @@ import { isAllowedModelId } from "@/lib/config/edition";
 import { listConnectedProviders } from "@/lib/credentials/service";
 import { completeModelPicks, MissingModelError } from "@/lib/sessions/model-picks";
 import { checkSessionQuota } from "@/lib/sessions/quota";
+import { MODEL_TIERS } from "@/lib/models/tiers";
 
 class SessionCreateValidationError extends Error {
   constructor(message: string) {
@@ -62,6 +63,9 @@ const CreateSchema = z.object({
     })
     .optional(),
   participantOverrides: z.record(z.string(), ModelId).optional(),
+  // Which model tier fills panelists without an explicit model. `freeOnly`
+  // is the older form of the same choice.
+  tier: z.enum(MODEL_TIERS).optional(),
   freeOnly: z.boolean().optional().default(false),
   locale: z.enum(["en", "fr"]).optional(),
 });
@@ -126,7 +130,7 @@ export async function POST(req: NextRequest) {
       overrides: input.participantOverrides ?? {},
       judgeModel: input.protocol?.judgeModel ?? "",
       synthesizerModel: input.protocol?.synthesizerModel ?? "",
-      freeOnly: input.freeOnly,
+      tier: input.tier ?? (input.freeOnly ? "free" : "low"),
       openRouterAvailable: connected.includes("openrouter"),
     });
   } catch (err) {

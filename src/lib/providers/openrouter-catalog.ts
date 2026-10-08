@@ -1,3 +1,5 @@
+import { inTier, type ModelTier } from "@/lib/models/tiers";
+
 /**
  * Live OpenRouter model catalog.
  *
@@ -10,11 +12,16 @@
  */
 
 function catalogUrl(): string {
-  const base = process.env.PARLOIR_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+  const base = openRouterApiBase();
   return `${base.replace(/\/+$/, "")}/models`;
 }
 const TTL_MS = 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8_000;
+
+/** OpenRouter's API root, or a compatible proxy / the local mock in development. */
+export function openRouterApiBase(): string {
+  return (process.env.PARLOIR_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+}
 
 export interface CatalogModel {
   /** Parloir model ID, always `openrouter/<slug>`. */
@@ -174,29 +181,54 @@ function debateCapable(m: CatalogModel): boolean {
 }
 
 /**
+ * Paid tiers rank by quality and only push flaky models down: paid models
+ * are reliable, and ranking a cheap "good" model above a frontier one would
+ * defeat the point of the High tier. Free models share capacity, so there
+ * reliability comes first.
+ */
+function tierOrder(tier: ModelTier): (a: CatalogModel, b: CatalogModel) => number {
+  if (tier === "free") return byReliabilityThenQuality;
+  return (a, b) =>
+    Number(a.reliability === "flaky") - Number(b.reliability === "flaky") || byQuality(a, b);
+}
+
+/** Models a tier draws from, best first. */
+export function tierPool(catalog: CatalogModel[], tier: ModelTier): CatalogModel[] {
+  return catalog.filter((m) => debateCapable(m) && !m.restricted && inTier(m, tier)).sort(tierOrder(tier));
+}
+
+/**
  * A default panel of `count` models. Different authors on purpose: model
  * diversity is what makes multi-agent debate beat a single model (Du et al.
  * 2023; Liang et al. 2023), so we never seat two models from one lab when
- * we can avoid it.
+ * we can avoid it. If a tier has too few models, cheaper tiers fill the
+ * remaining seats.
  */
 export function pickDefaultPanel(
   catalog: CatalogModel[],
   count: number,
-  opts: { freeOnly: boolean },
+  opts: { tier: ModelTier },
 ): string[] {
-  const pool = catalog
-    .filter((m) => debateCapable(m) && !m.restricted && (!opts.freeOnly || m.isFree))
-    .sort(byReliabilityThenQuality);
+  const primary = tierPool(catalog, opts.tier);
+  // Short on models: step down to cheaper tiers, never up, so a tier never
+  // seats something pricier than its name promises.
+  const cheaper: Record<ModelTier, ModelTier[]> = {
+    free: [],
+    low: ["free"],
+    medium: ["low", "free"],
+    high: ["medium", "low", "free"],
+  };
+  const backup = cheaper[opts.tier].flatMap((t) => tierPool(catalog, t));
   const picked: CatalogModel[] = [];
   const authors = new Set<string>();
-  for (const m of pool) {
+  for (const m of primary) {
     if (picked.length >= count) break;
     if (authors.has(m.author)) continue;
     authors.add(m.author);
     picked.push(m);
   }
-  // Not enough distinct authors — fill with the next best regardless.
-  for (const m of pool) {
+  // Not enough distinct labs: fill with the next best regardless of lab.
+  for (const m of [...primary, ...backup]) {
     if (picked.length >= count) break;
     if (!picked.includes(m)) picked.push(m);
   }
@@ -211,8 +243,10 @@ export function pickJudge(catalog: CatalogModel[], panel: string[]): string | nu
   const freeOnly = panel.every((id) => catalog.find((m) => m.id === id)?.isFree ?? false);
   const candidates = catalog
     .filter((m) => m.structured && debateCapable(m) && !m.restricted)
-    .filter((m) => (freeOnly ? m.isFree : m.completionPerM <= 5))
-    .sort(byReliabilityThenQuality);
+    // A paid debate gets a paid judge: a free one would bring back the rate
+    // limits the person paid to avoid.
+    .filter((m) => (freeOnly ? m.isFree : !m.isFree && m.completionPerM <= 5))
+    .sort(freeOnly ? byReliabilityThenQuality : tierOrder("low"));
   return (candidates.find((m) => !panel.includes(m.id)) ?? candidates[0])?.id ?? null;
 }
 
@@ -231,10 +265,11 @@ export function pickSecretary(catalog: CatalogModel[], panel: string[]): string 
 }
 
 /** Cheap structured-capable model for the panel recommender. */
-export function pickClassifier(catalog: CatalogModel[], freeOnly: boolean): string[] {
+export function pickClassifier(catalog: CatalogModel[], tier: ModelTier): string[] {
+  const freeOnly = tier === "free";
   return catalog
-    .filter((m) => m.structured && !m.restricted && (freeOnly ? m.isFree : m.completionPerM <= 5))
-    .sort(byReliabilityThenQuality)
+    .filter((m) => m.structured && !m.restricted && (freeOnly ? m.isFree : !m.isFree && m.completionPerM <= 5))
+    .sort(freeOnly ? byReliabilityThenQuality : tierOrder("low"))
     .slice(0, 3)
     .map((m) => m.id);
 }

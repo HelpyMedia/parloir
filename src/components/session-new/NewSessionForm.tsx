@@ -12,6 +12,10 @@ import { LocalOnlyReliabilityNote } from "./LocalOnlyReliabilityNote";
 import { PersonaChecklist } from "./PersonaChecklist";
 import { QuestionInput } from "./QuestionInput";
 import { StartButton } from "./StartButton";
+import { TierSelector } from "./TierSelector";
+import { useOpenRouterCredit } from "./useOpenRouterCredit";
+import { MODEL_TIERS, tierOf, type ModelTier } from "@/lib/models/tiers";
+import { estimateDebateCostUsd, formatEstimate } from "@/lib/models/cost-estimate";
 import { SuggestPanelButton, type SuggestStatus } from "./SuggestPanelButton";
 
 export interface NewSessionInitial {
@@ -97,10 +101,22 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
     for (const r of replacedSeats) delete seats[r.personaId];
     return seats;
   });
-  // Free by default: anyone can try Parloir without spending anything.
-  const [freeOnly, setFreeOnly] = useState(hasOpenRouter);
+  // Free until we know the account can pay; then Low cost (see below).
+  // Without OpenRouter (self-hosted providers) tiers don't apply: nothing is filtered.
+  const credit = useOpenRouterCredit(hasOpenRouter);
+  // The person's choice wins; until they make one, the tier follows the
+  // account. Derived rather than set in an effect, so seats are never filled
+  // from a tier that is about to change.
+  const [chosenTier, setChosenTier] = useState<ModelTier | null>(null);
+  const tier: ModelTier = chosenTier ?? (!hasOpenRouter ? "high" : credit === "credit" ? "low" : "free");
+  // Seat models only once the default tier is settled, so a paying account
+  // doesn't see a free panel flash and get swapped.
+  const tierReady = !hasOpenRouter || credit !== "loading";
   const [judgeModel, setJudgeModel] = useState(initial?.judgeModel ?? "");
   const [synthesizerModel, setSynthesizerModel] = useState(initial?.synthesizerModel ?? "");
+  // Seats the person picked themselves. Changing the tier reseats
+  // every other panelist from the new default pool; their picks stay.
+  const manualSeats = useRef(new Set<string>());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,22 +130,48 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
     (id: string) => {
       const m = modelById.get(id);
       if (!m || m.restricted) return false;
-      return !freeOnly || m.isFree;
+      return tier !== "free" || m.isFree;
     },
-    [modelById, freeOnly],
+    [modelById, tier],
   );
 
   const pool = useMemo(
-    () => (freeOnly ? catalog.defaults.free : catalog.defaults.all).filter((id) => !avoidModels.has(id)),
-    [freeOnly, catalog.defaults, avoidModels],
+    () => catalog.defaults[tier].filter((id) => !avoidModels.has(id)),
+    [tier, catalog.defaults, avoidModels],
   );
 
   // Seat a model for every selected panelist once the catalog is in, and
-  // whenever the selection or the free-only filter changes.
+  // whenever the selection or the tier changes.
   useEffect(() => {
-    if (catalog.loading || catalog.models.length === 0) return;
+    if (catalog.loading || catalog.models.length === 0 || !tierReady) return;
     setSeatModels((seats) => fillSeats(selectedIds, seats, pool, isUsable));
-  }, [catalog.loading, catalog.models.length, selectedIds, pool, isUsable]);
+  }, [catalog.loading, catalog.models.length, tierReady, selectedIds, pool, isUsable]);
+
+  // What a debate would cost: per tier (its default panel, for the cards) and
+  // for the panel actually seated.
+  const rounds = DEPTH_ROUNDS[depth];
+  const panelSize = Math.max(selectedIds.length, 2);
+  const priced = useCallback(
+    (ids: string[]) =>
+      ids
+        .map((id) => modelById.get(id))
+        .filter((m): m is PickerModel => Boolean(m))
+        .map((m) => ({ promptPerM: m.promptPerM, completionPerM: m.completionPerM })),
+    [modelById],
+  );
+  const tierEstimates = useMemo(() => {
+    const out = {} as Record<ModelTier, number | null>;
+    for (const t of MODEL_TIERS) {
+      const ids = catalog.defaults[t].slice(0, panelSize);
+      out[t] = catalog.loading || ids.length === 0 ? null : estimateDebateCostUsd(priced(ids), rounds);
+    }
+    return out;
+  }, [catalog.loading, catalog.defaults, panelSize, priced, rounds]);
+  const panelCost = estimateDebateCostUsd(
+    priced(selectedIds.map((id) => seatModels[id]).filter(Boolean)),
+    rounds,
+  );
+
 
   // --- Suggest-a-panel state ----------------------------------------------
   const [suggestStatus, setSuggestStatus] = useState<SuggestStatus>("idle");
@@ -153,6 +195,21 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
   const invalidateIfJustApplied = useCallback(() => {
     if (snapshotRef.current !== null) clearSuggestionState();
   }, [clearSuggestionState]);
+
+  const applyTier = useCallback(
+    (next: ModelTier) => {
+      invalidateIfJustApplied();
+      setChosenTier(next);
+      setSeatModels((seats) => {
+        const kept: Record<string, string> = {};
+        for (const [id, model] of Object.entries(seats)) {
+          if (manualSeats.current.has(id)) kept[id] = model;
+        }
+        return kept;
+      });
+    },
+    [invalidateIfJustApplied],
+  );
 
   const onUserEditTitle = useCallback(
     (v: string) => {
@@ -178,11 +235,16 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
   const onUserModel = useCallback(
     (personaId: string, modelId: string) => {
       invalidateIfJustApplied();
-      // Choosing a paid model is an explicit opt-out of the free-only panel.
-      if (freeOnly && modelById.get(modelId)?.isFree === false) setFreeOnly(false);
+      manualSeats.current.add(personaId);
+      // Choosing a paid model on the Free tier moves to that model's tier;
+      // the other seats stay as they are.
+      const picked = modelById.get(modelId);
+      if (tier === "free" && picked && !picked.isFree) {
+        setChosenTier(tierOf(picked));
+      }
       setSeatModels((prev) => ({ ...prev, [personaId]: modelId }));
     },
-    [invalidateIfJustApplied, freeOnly, modelById],
+    [invalidateIfJustApplied, tier, modelById],
   );
   const onUserToggle = useCallback(
     (id: string) => {
@@ -199,7 +261,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
       const r = await fetch("/api/sessions/recommend-panel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: question.trim(), freeOnly }),
+        body: JSON.stringify({ question: question.trim(), tier }),
       });
       if (r.status === 204 || !r.ok) {
         setSuggestStatus("idle");
@@ -225,7 +287,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
     } catch {
       setSuggestStatus("idle");
     }
-  }, [suggestStatus, question, freeOnly]);
+  }, [suggestStatus, question, tier]);
 
   const handleUndo = useCallback(() => {
     const snap = snapshotRef.current;
@@ -268,7 +330,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
           personaIds: selectedIds,
           protocol: { maxCritiqueRounds: DEPTH_ROUNDS[depth], judgeModel, synthesizerModel },
           participantOverrides,
-          freeOnly,
+          tier,
           locale: locale === "fr" ? "fr" : "en",
         }),
       });
@@ -348,24 +410,20 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
 
       <div className="space-y-3">
         {hasOpenRouter && (
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-2.5">
-            <input
-              type="checkbox"
-              checked={freeOnly}
-              onChange={(e) => {
-                invalidateIfJustApplied();
-                setFreeOnly(e.target.checked);
-              }}
-              className="mt-1 accent-[var(--color-spot-warm)]"
+          <div className="space-y-2">
+            <TierSelector
+              value={tier}
+              onChange={applyTier}
+              estimates={tierEstimates}
+              paidDisabled={credit === "none"}
             />
-            <span>
-              <span className="block text-sm text-[var(--color-text-primary)]">{t("freeOnly")}</span>
-              <span className="block text-xs text-[var(--color-text-muted)]">{t("freeOnlyHint")}</span>
-              {freeOnly && (
-                <span className="mt-1 block text-xs text-[var(--color-text-dim)]">{t("freeOnlyRestricted")}</span>
-              )}
-            </span>
-          </label>
+            {tier === "free" && <p className="text-xs text-[var(--color-text-dim)]">{t("freeOnlyRestricted")}</p>}
+            {panelCost > 0 && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {t("panelEstimate", { cost: formatEstimate(panelCost) })}
+              </p>
+            )}
+          </div>
         )}
 
         {catalog.error && (
@@ -380,7 +438,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
           seatModels={seatModels}
           models={catalog.models}
           modelsLoading={catalog.loading}
-          freeOnly={freeOnly}
+          freeOnly={tier === "free"}
           onToggle={onUserToggle}
           onModel={onUserModel}
           highlightedIds={suggestedRowIds}
@@ -403,7 +461,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
                 value={judgeModel}
                 models={catalog.models}
                 allowAuto
-                freeOnlyDefault={freeOnly}
+                freeOnlyDefault={tier === "free"}
                 onChange={setJudgeModel}
               />
             </div>
@@ -416,7 +474,7 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
                 value={synthesizerModel}
                 models={catalog.models}
                 allowAuto
-                freeOnlyDefault={freeOnly}
+                freeOnlyDefault={tier === "free"}
                 onChange={setSynthesizerModel}
               />
             </div>

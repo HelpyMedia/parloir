@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
 import { getCredential } from "@/lib/credentials/service";
+import { openRouterApiBase } from "@/lib/providers/openrouter-catalog";
 
 interface KeyInfo {
   label?: string;
@@ -29,7 +30,7 @@ export async function GET(
   if (!key) return NextResponse.json({ connected: false });
 
   try {
-    const r = await fetch("https://openrouter.ai/api/v1/key", {
+    const r = await fetch(`${openRouterApiBase()}/key`, {
       headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(6_000),
       cache: "no-store",

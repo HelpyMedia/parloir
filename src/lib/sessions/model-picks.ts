@@ -15,6 +15,7 @@ import {
   type CatalogModel,
 } from "@/lib/providers/openrouter-catalog";
 import { getCatalogWithHealth } from "@/lib/models/catalog";
+import type { ModelTier } from "@/lib/models/tiers";
 
 export interface ModelPicks {
   overrides: Record<string, string>;
@@ -34,7 +35,7 @@ export async function completeModelPicks(params: {
   overrides: Record<string, string>;
   judgeModel: string;
   synthesizerModel: string;
-  freeOnly: boolean;
+  tier: ModelTier;
   openRouterAvailable: boolean;
 }): Promise<ModelPicks> {
   const overrides = { ...params.overrides };
@@ -55,7 +56,7 @@ export async function completeModelPicks(params: {
   if (missing.length > 0) {
     if (!catalog) throw new MissingModelError(missing[0]);
     const used = new Set(Object.values(overrides));
-    const pool = pickDefaultPanel(catalog, 10, { freeOnly: params.freeOnly }).filter(
+    const pool = pickDefaultPanel(catalog, 10, { tier: params.tier }).filter(
       (id) => !used.has(id),
     );
     for (const personaId of missing) {
