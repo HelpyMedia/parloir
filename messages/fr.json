@@ -91,6 +91,8 @@
     "insufficient_credits": "Votre compte OpenRouter n'a plus de crédits pour ce modèle. Ajoutez des crédits sur openrouter.ai ou choisissez un modèle gratuit.",
     "rate_limited": "Ce modèle est limité pour l'instant. Les modèles gratuits ont un nombre limité de requêtes par jour : réessayez plus tard ou choisissez un autre modèle.",
     "model_unavailable": "Ce modèle n'est pas disponible sur OpenRouter pour le moment. Choisissez-en un autre.",
+    "model_restricted": "OpenRouter refuse de servir ce modèle à Parloir (certains modèles gratuits sont réservés à des applications précises). Choisissez-en un autre.",
+    "provider_overloaded": "Le fournisseur de ce modèle est surchargé en ce moment. Réessayez dans quelques minutes ou choisissez un autre modèle.",
     "context_too_long": "La conversation est devenue trop longue pour ce modèle. Choisissez un modèle avec une plus grande fenêtre de contexte.",
     "timeout": "Le modèle a mis trop de temps à répondre.",
     "empty_response": "Le modèle a renvoyé une réponse vide.",
@@ -98,7 +100,8 @@
     "unknown": "Le débat s'est arrêté à cause d'une erreur inattendue. La transcription jusqu'ici est sauvegardée.",
     "synthesis_failed": "Aucun modèle du panel n'a pu rédiger la synthèse finale. La transcription est sauvegardée; réessayez avec un modèle plus puissant.",
     "daily_limit": "Vous avez atteint la limite de débats pour aujourd'hui. Réessayez demain.",
-    "concurrent_limit": "Des débats sont déjà en cours. Attendez qu'un se termine avant d'en lancer un autre."
+    "concurrent_limit": "Des débats sont déjà en cours. Attendez qu'un se termine avant d'en lancer un autre.",
+    "turnFailed": "L'appel au modèle a échoué."
   },
   "Session": {
     "pause": "Pause",

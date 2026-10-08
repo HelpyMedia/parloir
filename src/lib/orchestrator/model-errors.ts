@@ -12,6 +12,8 @@ export type ModelErrorCode =
   | "insufficient_credits"
   | "rate_limited"
   | "model_unavailable"
+  | "model_restricted"
+  | "provider_overloaded"
   | "context_too_long"
   | "timeout"
   | "empty_response"
@@ -31,6 +33,10 @@ const MESSAGES: Record<ModelErrorCode, string> = {
     "The model is rate-limited right now. Free models allow a limited number of requests per day; try again later or pick another model.",
   model_unavailable:
     "This model is not available on OpenRouter right now. Pick a different one.",
+  model_restricted:
+    "OpenRouter won't serve this model to Parloir (some free models are limited to certain apps). Pick a different one.",
+  provider_overloaded:
+    "The model's provider is overloaded right now. Try again in a few minutes or pick another model.",
   context_too_long:
     "The conversation got too long for this model's context window. Pick a model with a larger context.",
   timeout: "The model took too long to answer and was skipped.",
@@ -71,15 +77,34 @@ export function describeModelError(err: unknown): ModelErrorInfo {
   const status = statusOf(err);
   const text = textOf(err);
 
+  // OpenRouter also answers 403 for things that have nothing to do with the
+  // key (free models gated to partner apps, moderation), so a 403 only means
+  // a bad key when the message says so. Misreading it aborts the debate.
+  const keyProblem =
+    text.includes("invalid api key") ||
+    text.includes("no auth credentials") ||
+    text.includes("user not found") ||
+    text.includes("key is disabled") ||
+    text.includes("key has been disabled");
+
   let code: ModelErrorCode = "unknown";
-  if (status === 401 || status === 403 || text.includes("invalid api key") || text.includes("no auth credentials")) {
+  if (status === 401 || keyProblem) {
     code = "invalid_key";
-  } else if (status === 402 || text.includes("insufficient credits") || text.includes("requires more credits")) {
+  } else if (
+    status === 402 ||
+    text.includes("insufficient credits") ||
+    text.includes("requires more credits") ||
+    text.includes("key limit")
+  ) {
     code = "insufficient_credits";
   } else if (status === 429 || text.includes("rate limit")) {
     code = "rate_limited";
   } else if (status === 404 || text.includes("no endpoints found") || text.includes("not a valid model")) {
     code = "model_unavailable";
+  } else if (status === 403) {
+    code = "model_restricted";
+  } else if (status === 502 || status === 503 || text.includes("overloaded")) {
+    code = "provider_overloaded";
   } else if (text.includes("context length") || text.includes("maximum context") || text.includes("too many tokens")) {
     code = "context_too_long";
   } else if (text.includes("timeouterror") || text.includes("aborterror") || text.includes("timed out") || text.includes("aborted")) {
