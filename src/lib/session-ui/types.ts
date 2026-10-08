@@ -52,8 +52,19 @@ export interface UISession {
   errorCode: string | null;
   /** Non-fatal problems, e.g. a panelist whose model failed and was skipped. */
   notices: TurnNotice[];
+  /** Panelists whose model failed, for the failure dialog and "Try again". */
+  failedSeats: FailedSeat[];
   lastSeq: number;
   totalCostUsd: number;
+}
+
+/** A panelist whose model failed and hasn't answered since. */
+export interface FailedSeat {
+  personaId: string;
+  personaName: string;
+  modelId: string;
+  /** Error code from model-errors.ts. */
+  code: string;
 }
 
 export interface TurnNotice {
@@ -75,4 +86,6 @@ export interface HydrationBundle {
   lastSeq: number;
   /** Set when the session ended in failure, from its last error event. */
   failure: { message: string; code: string | null } | null;
+  /** Panelists whose model failed (only loaded for failed sessions). */
+  failedSeats: FailedSeat[];
 }

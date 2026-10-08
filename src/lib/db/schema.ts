@@ -120,6 +120,24 @@ export const authRateLimits = pgTable("auth_rate_limits", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
+// ─── Model health ───────────────────────────────────────────────────────────
+// What Parloir has seen each model do, shared across users: OpenRouter gates
+// some free models per app, so one refusal applies to everyone. Counters
+// cover a rolling window (reset when window_started_at is older than a week)
+// so an old outage doesn't follow a model forever. See src/lib/models/health.ts.
+export const modelHealth = pgTable("model_health", {
+  modelId: text("model_id").primaryKey(),
+  restrictedUntil: timestamp("restricted_until", { withTimezone: true }),
+  restrictedCode: text("restricted_code"),
+  successes: integer("successes").notNull().default(0),
+  failures: integer("failures").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastFailureAt: timestamp("last_failure_at", { withTimezone: true }),
+  lastFailureCode: text("last_failure_code"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── User credentials (encrypted BYOK API keys) ─────────────────────────────
 // AES-256-GCM encrypted at rest. iv and tag are base64 strings; payload is
 // base64-ciphertext. The server-side encryption key lives in an env var and

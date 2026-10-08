@@ -6,7 +6,8 @@
 // - GET  /api/v1/models            small catalog (free + paid, benchmarks)
 // - POST /api/v1/chat/completions  streaming or JSON; json_schema honored
 // Model ids containing "broken" return 429 (exercise skipped turns);
-// "slowpoke" hangs 200s (exercise timeouts).
+// "gated" return OpenRouter's 403 for free models limited to partner apps;
+// "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts).
 import http from "node:http";
 
 const PORT = Number(process.env.PORT ?? 4010);
@@ -19,6 +20,8 @@ const models = [
   ["gamma/reasoner:free", "Gamma: Reasoner (free)", "0", "0", 40, ["structured_outputs"]],
   ["delta/mini:free", "Delta: Mini (free)", "0", "0", null, []],
   ["epsilon/broken:free", "Epsilon: Broken (free)", "0", "0", 30, []],
+  ["theta/gated:free", "Theta: Gated (free)", "0", "0", 55, []],
+  ["iota/overloaded:free", "Iota: Overloaded (free)", "0", "0", 20, []],
   ["zeta/tiny", "Zeta: Tiny 8K", "0.0000001", "0.0000001", 10, []],
 ].map(([id, name, prompt, completion, iq, params], i) => ({
   id,
@@ -100,6 +103,14 @@ http
       if (model.includes("broken")) {
         res.writeHead(429, { "content-type": "application/json" });
         return res.end(JSON.stringify({ error: { code: 429, message: "Rate limit exceeded: free-models-per-day" } }));
+      }
+      if (model.includes("gated")) {
+        res.writeHead(403, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: { code: 403, message: `${model} is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps` } }));
+      }
+      if (model.includes("overloaded")) {
+        res.writeHead(503, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: { code: 503, message: "Upstream error from Iota: Service temporarily overloaded", metadata: { error_type: "provider_overloaded" } } }));
       }
       if (model.includes("slowpoke")) await sleep(200_000);
 

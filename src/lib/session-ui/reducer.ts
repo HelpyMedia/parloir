@@ -30,6 +30,7 @@ export function initialState(bundle: HydrationBundle): UISession {
     error: bundle.failure?.message ?? null,
     errorCode: bundle.failure?.code ?? null,
     notices: [],
+    failedSeats: bundle.failedSeats ?? [],
     lastSeq: bundle.lastSeq,
     totalCostUsd: bundle.turns.reduce((acc, t) => acc + t.costUsd, 0),
   };
@@ -91,6 +92,7 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
         live: null,
         personaState,
         totalCostUsd: state.totalCostUsd + event.turn.costUsd,
+        failedSeats: state.failedSeats.filter((f) => f.personaId !== event.turn.speakerId),
       };
     }
 
@@ -105,11 +107,20 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
         code: event.code,
         message: event.message,
       };
+      const modelId = event.modelId ?? state.session.participantModelOverrides?.[event.speakerId];
+      const failedSeats =
+        modelId && event.code !== "invalid_key"
+          ? [
+              ...state.failedSeats.filter((f) => f.personaId !== event.speakerId),
+              { personaId: event.speakerId, personaName: event.speakerName, modelId, code: event.code },
+            ]
+          : state.failedSeats;
       return {
         ...state,
         personaState,
         live: state.live?.speakerId === event.speakerId ? null : state.live,
         notices: [...state.notices, notice].slice(-4),
+        failedSeats,
       };
     }
 

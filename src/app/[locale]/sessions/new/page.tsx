@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/server";
 import { listConnectedProviders, listLocalUrls } from "@/lib/credentials/service";
 import { allowedCloudProviders, allowedLocalProviders, isHosted } from "@/lib/config/edition";
 import { loadHydrationBundle } from "@/lib/sessions/bundle";
+import { loadFailedSeats } from "@/lib/sessions/failed-seats";
 
 export const dynamic = "force-dynamic";
 
@@ -58,19 +59,23 @@ export default async function NewSessionPage({
     );
   }
 
-  // "Try again" from a failed session prefills the same question and panel.
+  // "Try again" from a failed session prefills the same question and panel,
+  // swapping out the models that failed.
   let initial: NewSessionInitial | null = null;
   if (from) {
     const previous = await loadHydrationBundle(from, user.id).catch(() => null);
     if (previous) {
+      const seatModels = previous.session.participantModelOverrides ?? {};
+      const replacedSeats = await loadFailedSeats(previous.session.id, seatModels).catch(() => []);
       initial = {
         title: previous.session.title,
         question: previous.session.question,
         personaIds: previous.participantOrder,
-        seatModels: previous.session.participantModelOverrides ?? {},
+        seatModels,
         depth: depthFromRounds(previous.session.protocol.maxCritiqueRounds),
         judgeModel: "",
         synthesizerModel: "",
+        replacedSeats: replacedSeats.filter((r) => previous.participantOrder.includes(r.personaId)),
       };
     }
   }

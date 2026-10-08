@@ -15,6 +15,9 @@ export interface PickerModel {
   contextLength: number | null;
   intelligence: number | null;
   created: number;
+  /** OpenRouter recently refused this model to Parloir; never seated by default. */
+  restricted?: boolean;
+  reliability?: "good" | "unknown" | "flaky";
 }
 
 export interface ModelCatalogState {
@@ -46,6 +49,8 @@ function fromCatalog(m: CatalogModel): PickerModel {
     contextLength: m.contextLength,
     intelligence: m.intelligence,
     created: m.created,
+    restricted: m.restricted,
+    reliability: m.reliability,
   };
 }
 

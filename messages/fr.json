@@ -93,6 +93,7 @@
     "model_unavailable": "Ce modèle n'est pas disponible sur OpenRouter pour le moment. Choisissez-en un autre.",
     "model_restricted": "OpenRouter refuse de servir ce modèle à Parloir (certains modèles gratuits sont réservés à des applications précises). Choisissez-en un autre.",
     "provider_overloaded": "Le fournisseur de ce modèle est surchargé en ce moment. Réessayez dans quelques minutes ou choisissez un autre modèle.",
+    "content_flagged": "Le fournisseur du modèle a signalé cette demande selon ses règles de contenu et l'a refusée.",
     "context_too_long": "La conversation est devenue trop longue pour ce modèle. Choisissez un modèle avec une plus grande fenêtre de contexte.",
     "timeout": "Le modèle a mis trop de temps à répondre.",
     "empty_response": "Le modèle a renvoyé une réponse vide.",
@@ -117,7 +118,12 @@
     "phaseSynthesis": "Synthèse",
     "phaseFinal": "Final",
     "failedTitle": "Ce débat s'est arrêté.",
-    "turnSkipped": "{name} n'a pas pu répondre :"
+    "turnSkipped": "{name} n'a pas pu répondre :",
+    "failedDialogTitle": "Certains modèles n'ont pas pu répondre",
+    "failedDialogBody": "Ces panélistes ont été sautés parce que leur modèle a échoué. Remplacez leurs modèles et relancez le débat : votre question et le reste du panel sont conservés.",
+    "failedDialogSwap": "Remplacer ces modèles et réessayer",
+    "failedDialogClose": "Fermer",
+    "failedDialogRestrictedNote": "Les modèles refusés par OpenRouter sont désormais exclus des panels par défaut."
   },
   "NewSession": {
     "eyebrow": "Nouvelle séance",
@@ -137,6 +143,7 @@
     "personasLabel": "Panel (choisissez 2 à 5)",
     "freeOnly": "Modèles gratuits seulement",
     "freeOnlyHint": "Les modèles gratuits ne coûtent rien, mais OpenRouter limite le nombre de requêtes par jour.",
+    "freeOnlyRestricted": "OpenRouter peut aussi restreindre certains modèles gratuits ou manquer de capacité. Si un modèle ne répond pas, ce panéliste est sauté et vous verrez quel modèle remplacer.",
     "advanced": "Juge et secrétaire",
     "advancedHint": "Le juge évalue le consensus entre les rondes; le secrétaire rédige la synthèse finale. Le mode auto les choisit dans le catalogue en direct.",
     "judge": "Juge",
@@ -154,6 +161,7 @@
     "estimate": "Coût estimé : {cost}",
     "estimateFree": "Coût estimé : gratuit",
     "retryBanner": "Vous repartez d'une séance précédente. Ajustez les modèles et réessayez.",
+    "retryReplaced": "{name} : {model} a été remplacé. La dernière fois : {reason}",
     "connectTitle": "Connectez OpenRouter pour commencer",
     "connectEyebrow": "Une dernière étape",
     "connectBody": "Parloir lance les débats sur votre propre compte OpenRouter. Vous payez OpenRouter directement pour ce que vous utilisez, et les modèles gratuits ne coûtent rien.",
@@ -175,7 +183,10 @@
     "loading": "Chargement des modèles…",
     "count": "{count} modèles",
     "provider": "Fournisseur",
-    "noModel": "Aucun modèle choisi"
+    "noModel": "Aucun modèle choisi",
+    "restricted": "Refusé par OpenRouter",
+    "restrictedHint": "OpenRouter a récemment refusé de servir ce modèle à Parloir",
+    "flaky": "Souvent saturé"
   },
   "Settings": {
     "title": "Paramètres",

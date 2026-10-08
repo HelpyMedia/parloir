@@ -226,6 +226,8 @@ export type StreamEvent =
       speakerId: string;
       speakerName: string;
       phase: Phase;
+      /** Model that failed. Absent on events written before this field existed. */
+      modelId?: string;
       code: string;
       message: string;
     }

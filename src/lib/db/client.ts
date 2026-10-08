@@ -41,6 +41,12 @@ export const db = drizzle(client, { schema });
 
 // ─── Storage adapter ────────────────────────────────────────────────────────
 export const storage: Storage = {
+  async recordModelOutcome(modelId, code) {
+    // Imported lazily: health.ts imports this module for `db`.
+    const { recordModelOutcome } = await import("@/lib/models/health");
+    await recordModelOutcome(modelId, code);
+  },
+
   async appendTurn(turn: Turn) {
     await db.insert(schema.turns).values({
       id: turn.id,

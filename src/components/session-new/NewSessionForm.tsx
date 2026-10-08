@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import type { Persona } from "@/lib/orchestrator/types";
+import type { FailedSeat } from "@/lib/session-ui/types";
 import { ModelPicker } from "../models/ModelPicker";
 import { useModelCatalog, type PickerModel } from "../models/useModelCatalog";
 import { DepthSelector, DEPTH_ROUNDS, type Depth } from "./DepthSelector";
@@ -21,6 +22,8 @@ export interface NewSessionInitial {
   depth: Depth;
   judgeModel: string;
   synthesizerModel: string;
+  /** Panelists whose model failed last time; their seats get a different model. */
+  replacedSeats?: FailedSeat[];
 }
 
 interface Props {
@@ -85,7 +88,15 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
   const [selectedIds, setSelectedIds] = useState<string[]>(
     initial?.personaIds ?? personas.slice(0, 3).map((p) => p.id),
   );
-  const [seatModels, setSeatModels] = useState<Record<string, string>>(initial?.seatModels ?? {});
+  const replacedSeats = initial?.replacedSeats ?? [];
+  // Models that failed last time are left out of the auto-fill pool, so a retry
+  // doesn't seat the same model that just broke.
+  const [avoidModels] = useState(() => new Set(replacedSeats.map((r) => r.modelId)));
+  const [seatModels, setSeatModels] = useState<Record<string, string>>(() => {
+    const seats = { ...(initial?.seatModels ?? {}) };
+    for (const r of replacedSeats) delete seats[r.personaId];
+    return seats;
+  });
   // Free by default: anyone can try Parloir without spending anything.
   const [freeOnly, setFreeOnly] = useState(hasOpenRouter);
   const [judgeModel, setJudgeModel] = useState(initial?.judgeModel ?? "");
@@ -102,13 +113,16 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
   const isUsable = useCallback(
     (id: string) => {
       const m = modelById.get(id);
-      if (!m) return false;
+      if (!m || m.restricted) return false;
       return !freeOnly || m.isFree;
     },
     [modelById, freeOnly],
   );
 
-  const pool = freeOnly ? catalog.defaults.free : catalog.defaults.all;
+  const pool = useMemo(
+    () => (freeOnly ? catalog.defaults.free : catalog.defaults.all).filter((id) => !avoidModels.has(id)),
+    [freeOnly, catalog.defaults, avoidModels],
+  );
 
   // Seat a model for every selected panelist once the catalog is in, and
   // whenever the selection or the free-only filter changes.
@@ -293,9 +307,22 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
       </header>
 
       {initial && (
-        <p className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3 text-sm text-[var(--color-text-muted)]">
-          {t("retryBanner")}
-        </p>
+        <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3 text-sm text-[var(--color-text-muted)]">
+          <p>{t("retryBanner")}</p>
+          {replacedSeats.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs">
+              {replacedSeats.map((r) => (
+                <li key={r.personaId}>
+                  {t("retryReplaced", {
+                    name: r.personaName,
+                    model: modelById.get(r.modelId)?.name ?? r.modelId.replace(/^openrouter\//, ""),
+                    reason: tErr.has(r.code) ? tErr(r.code) : tErr("turnFailed"),
+                  })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <QuestionInput
@@ -334,6 +361,9 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
             <span>
               <span className="block text-sm text-[var(--color-text-primary)]">{t("freeOnly")}</span>
               <span className="block text-xs text-[var(--color-text-muted)]">{t("freeOnlyHint")}</span>
+              {freeOnly && (
+                <span className="mt-1 block text-xs text-[var(--color-text-dim)]">{t("freeOnlyRestricted")}</span>
+              )}
             </span>
           </label>
         )}

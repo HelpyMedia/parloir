@@ -14,6 +14,7 @@ export type ModelErrorCode =
   | "model_unavailable"
   | "model_restricted"
   | "provider_overloaded"
+  | "content_flagged"
   | "context_too_long"
   | "timeout"
   | "empty_response"
@@ -37,6 +38,8 @@ const MESSAGES: Record<ModelErrorCode, string> = {
     "OpenRouter won't serve this model to Parloir (some free models are limited to certain apps). Pick a different one.",
   provider_overloaded:
     "The model's provider is overloaded right now. Try again in a few minutes or pick another model.",
+  content_flagged:
+    "The model's provider flagged this request under its content rules and refused it.",
   context_too_long:
     "The conversation got too long for this model's context window. Pick a model with a larger context.",
   timeout: "The model took too long to answer and was skipped.",
@@ -101,6 +104,8 @@ export function describeModelError(err: unknown): ModelErrorInfo {
     code = "rate_limited";
   } else if (status === 404 || text.includes("no endpoints found") || text.includes("not a valid model")) {
     code = "model_unavailable";
+  } else if (status === 403 && (text.includes("flagged") || text.includes("moderation"))) {
+    code = "content_flagged";
   } else if (status === 403) {
     code = "model_restricted";
   } else if (status === 502 || status === 503 || text.includes("overloaded")) {

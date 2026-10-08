@@ -9,12 +9,12 @@
  */
 
 import {
-  getCatalog,
   pickDefaultPanel,
   pickJudge,
   pickSecretary,
   type CatalogModel,
 } from "@/lib/providers/openrouter-catalog";
+import { getCatalogWithHealth } from "@/lib/models/catalog";
 
 export interface ModelPicks {
   overrides: Record<string, string>;
@@ -46,7 +46,7 @@ export async function completeModelPicks(params: {
   let catalog: CatalogModel[] | null = null;
   if (needsCatalog) {
     try {
-      catalog = await getCatalog();
+      catalog = await getCatalogWithHealth();
     } catch (err) {
       console.warn("[model-picks] catalog unavailable", err);
     }
