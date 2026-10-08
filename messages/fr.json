@@ -61,6 +61,7 @@
     "signUpLink": "S'inscrire",
     "signInFailed": "Échec de la connexion.",
     "signUpFailed": "Échec de la création du compte.",
+    "networkError": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
     "errorUserExists": "Un compte existe déjà avec ce courriel. Connectez-vous plutôt.",
     "errorInvalidCredentials": "Courriel ou mot de passe incorrect.",
     "errorPasswordShort": "Utilisez un mot de passe d'au moins 12 caractères.",

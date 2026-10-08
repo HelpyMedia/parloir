@@ -12,7 +12,13 @@ export function SignOutButton() {
 
   function handleClick() {
     startTransition(async () => {
-      await authClient.signOut();
+      // A thrown error here would replace the page with Next's error screen;
+      // on failure the button simply re-enables.
+      try {
+        await authClient.signOut();
+      } catch {
+        return;
+      }
       router.push("/signin");
       router.refresh();
     });

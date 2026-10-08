@@ -61,6 +61,7 @@
     "signUpLink": "Sign up",
     "signInFailed": "Sign in failed.",
     "signUpFailed": "Sign up failed.",
+    "networkError": "Couldn't reach the server. Check your connection and try again.",
     "errorUserExists": "An account with this email already exists. Sign in instead.",
     "errorInvalidCredentials": "Wrong email or password.",
     "errorPasswordShort": "Use a password of at least 12 characters.",

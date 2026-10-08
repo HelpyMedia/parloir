@@ -61,32 +61,43 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError(null);
 
     startTransition(async () => {
-      if (isSignUp) {
-        const result = await authClient.signUp.email({
-          email,
-          password,
-          name,
-          callbackURL: `/${locale}${next}`,
-        });
-        if (result.error) {
-          setError(errorText(result.error, t("signUpFailed")));
-        } else if (!result.data?.token) {
-          // Email verification is on: no session until the link is clicked.
-          setCheckInbox(true);
-        } else {
-          router.push(next);
-          router.refresh();
-        }
-      } else {
-        const result = await authClient.signIn.email({ email, password });
-        if (result.error) {
-          setError(errorText(result.error, t("signInFailed")));
-        } else {
-          router.push(next);
-          router.refresh();
-        }
+      // An error thrown inside an async transition reaches React's error
+      // boundary and replaces the whole page, so network failures are caught
+      // here and shown inline.
+      try {
+        await submit();
+      } catch {
+        setError(t("networkError"));
       }
     });
+  }
+
+  async function submit() {
+    if (isSignUp) {
+      const result = await authClient.signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: `/${locale}${next}`,
+      });
+      if (result.error) {
+        setError(errorText(result.error, t("signUpFailed")));
+      } else if (!result.data?.token) {
+        // Email verification is on: no session until the link is clicked.
+        setCheckInbox(true);
+      } else {
+        router.push(next);
+        router.refresh();
+      }
+    } else {
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) {
+        setError(errorText(result.error, t("signInFailed")));
+      } else {
+        router.push(next);
+        router.refresh();
+      }
+    }
   }
 
   return (
