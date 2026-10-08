@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { requireUser } from "@/lib/auth/server";
 import { listConnectedProviders, listLocalUrls } from "@/lib/credentials/service";
 import { ProviderList } from "@/components/settings/ProviderList";
+import { DeleteAccount } from "@/components/settings/DeleteAccount";
 import { isHosted } from "@/lib/config/edition";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,8 @@ export default async function SettingsPage({
         )}
 
         <ProviderList cloud={cloud} local={local} hosted={isHosted()} />
+
+        <DeleteAccount email={user.email} />
       </div>
     </main>
   );

@@ -41,7 +41,7 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
       <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
-          className="group flex items-center gap-2 font-display text-lg tracking-tight text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-spot-warm)]"
+          className="group flex shrink-0 items-center gap-2 font-display text-lg tracking-tight text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-spot-warm)]"
         >
           <svg
             viewBox="0 0 32 32"
@@ -112,16 +112,16 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
           </nav>
           </>
         ) : (
-          <nav className="flex items-center gap-4">
+          <nav className="ml-4 flex items-center gap-3 sm:gap-4">
             <Link
               href="/signin"
-              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] sm:tracking-[0.18em]"
             >
               {t("signIn")}
             </Link>
             <Link
               href="/signup"
-              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-spot-warm)] hover:underline"
+              className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-spot-warm)] hover:underline sm:tracking-[0.18em]"
             >
               {t("signUp")}
             </Link>

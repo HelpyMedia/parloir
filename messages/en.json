@@ -39,7 +39,11 @@
     "featureStreamBody": "Watch every turn as it streams. Reconnect at any time and replay from any point.",
     "featurePauseTitle": "Pause and steer",
     "featurePauseBody": "Drop a note between phases. The council sees it before the next round begins.",
-    "footerTagline": "Open protocol for AI deliberation."
+    "footerTagline": "Open protocol for AI deliberation.",
+    "featureByokBodyHosted": "Connect your OpenRouter account in one click. Pick from hundreds of models, including free ones, and pay OpenRouter directly for the rest. Parloir itself is free.",
+    "footerPrivacy": "Privacy",
+    "footerTerms": "Terms",
+    "footerSource": "Open source on GitHub"
   },
   "Auth": {
     "signInTitle": "Sign in",
@@ -56,7 +60,14 @@
     "signInLink": "Sign in",
     "signUpLink": "Sign up",
     "signInFailed": "Sign in failed.",
-    "signUpFailed": "Sign up failed."
+    "signUpFailed": "Sign up failed.",
+    "errorUserExists": "An account with this email already exists. Sign in instead.",
+    "errorInvalidCredentials": "Wrong email or password.",
+    "errorPasswordShort": "Use a password of at least 12 characters.",
+    "errorEmailNotVerified": "Confirm your email first: check your inbox for the link we sent.",
+    "errorInvalidEmail": "That email address doesn't look right.",
+    "checkInbox": "Check your inbox: we sent a confirmation link to {email}. Open it to finish creating your account.",
+    "consent": "By creating an account you agree to the <terms>Terms</terms> and the <privacy>Privacy notice</privacy>."
   },
   "SessionsDashboard": {
     "title": "Your sessions",
@@ -196,7 +207,13 @@
     "googleHint": "API key for Gemini models.",
     "ollamaHint": "Run models locally via Ollama.",
     "lmstudioHint": "OpenAI-compatible local server.",
-    "privacy": "Keys are encrypted at rest and only used to run your debates. Disconnecting deletes the key from Parloir."
+    "privacy": "Keys are encrypted at rest and only used to run your debates. Disconnecting deletes the key from Parloir.",
+    "deleteTitle": "Delete account",
+    "deleteBody": "Permanently deletes your account, your stored OpenRouter key and every debate you ran. This can't be undone.",
+    "deleteButton": "Delete my account",
+    "deleteConfirm": "Type {email} to confirm",
+    "deleteForever": "Delete forever",
+    "deleteFailed": "Couldn't delete the account. Try again."
   },
   "Council": {
     "council": "Council",
@@ -271,5 +288,10 @@
     "pragmatic_operator": "Pragmatic Operator",
     "skeptical_auditor": "Skeptical Auditor",
     "stakeholder_proxy": "Stakeholder Proxy"
+  },
+  "Legal": {
+    "updated": "Last updated: October 2026",
+    "privacyTitle": "Privacy",
+    "termsTitle": "Terms of use"
   }
 }

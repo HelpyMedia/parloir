@@ -4,7 +4,7 @@
 
 Parloir assembles a panel of AI agents — each with a distinct role, model, and perspective — to debate hard questions and reach a durable consensus. Instead of one confident answer from one model, you get structured deliberation across multiple models that you can trust, trace, and export.
 
-**Status:** pre-alpha. Core scaffold is in place; the first end-to-end session will run soon. Star the repo to follow along.
+**Status:** alpha. Full debates run end to end: live streaming, pause and steer, export. Use it free at [parloir.dev](https://parloir.dev) with your own OpenRouter account, or self-host it.
 
 ---
 
@@ -18,9 +18,12 @@ Today that means:
 - one app instance
 - your own provider accounts or local models
 - Postgres + Inngest under your control
-- no built-in billing, quotas, multi-tenant org controls, or hosted ops layer
+- no built-in billing or multi-tenant org controls
 
-Those hosted/SaaS concerns are intended for a future cloud product, not this repo.
+The same code runs the free public service with `PARLOIR_HOSTED=1`: OpenRouter
+becomes the only provider (users connect their own account in one click),
+local model servers are switched off, and per-user debate caps apply. See
+[docs/deploy.md](./docs/deploy.md).
 
 ## Why this exists
 
@@ -45,31 +48,34 @@ The protocol is designed around key findings from MAD research: diversity matter
 
 - **Frontend:** Next.js 15 (App Router) + Tailwind + shadcn/ui
 - **Streaming:** Vercel AI SDK v5
-- **Providers:** OpenRouter (default), direct Anthropic/OpenAI/Google, Ollama, LM Studio, vLLM
+- **Providers:** OpenRouter (default, live model catalog, free models), direct Anthropic/OpenAI/Google, Ollama, LM Studio, vLLM
 - **Orchestration:** custom TypeScript state machine — no framework lock-in
 - **Durable execution:** Inngest (bypasses Vercel's 300s function timeout)
 - **Database:** Postgres + Drizzle ORM + pgvector
-- **Tools:** MCP client, web search, RAG over uploaded docs
-- **Observability:** Langfuse (self-hostable)
+- **Planned:** web search, RAG over uploaded docs, MCP tools, Langfuse tracing
 
 ## Quickstart
 
 ```bash
 pnpm install
 cp .env.example .env.local
-# Minimum: OPENROUTER_API_KEY, POSTGRES_PASSWORD, DATABASE_URL
+# Minimum: POSTGRES_PASSWORD, DATABASE_URL, BETTER_AUTH_SECRET, PARLOIR_ENCRYPTION_KEY
 
-pnpm db:up                                              # start Postgres via docker compose
-psql $DATABASE_URL -f db/migrations/0000_setup.sql      # install pgvector (required before migrate)
-pnpm db:migrate                                         # apply schema
-pnpm db:seed                                            # optional in dev: sync template personas + create dev user
+pnpm db:up          # start Postgres via docker compose
+pnpm db:deploy      # install pgvector + apply every migration
 
 # Two terminals:
 pnpm inngest:dev    # local workflow runner
 pnpm dev            # Next.js
 ```
 
-Open http://localhost:3000 and start a session.
+Open http://localhost:3000, create an account, connect OpenRouter in
+Settings (or paste any provider key), and start a session. Free models work
+with a free OpenRouter account.
+
+To run debates without any account or network, start the bundled fake
+OpenRouter (`pnpm dev:mock-openrouter`) and set
+`PARLOIR_OPENROUTER_BASE_URL=http://localhost:4010/api/v1`.
 
 Template personas are auto-synced into the DB the first time a session is
 created, so `pnpm db:seed` is recommended for development convenience but is

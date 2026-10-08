@@ -13,6 +13,7 @@ const PROTECTED_API = [
   "/api/providers",
   "/api/models",
   "/api/openrouter",
+  "/api/account",
 ];
 
 export function middleware(req: NextRequest) {

@@ -39,7 +39,11 @@
     "featureStreamBody": "Suivez chaque tour en direct. Reconnectez-vous à tout moment et reprenez la lecture.",
     "featurePauseTitle": "Mettez en pause et orientez",
     "featurePauseBody": "Glissez une note entre deux phases. Le conseil la voit avant le tour suivant.",
-    "footerTagline": "Protocole ouvert pour la délibération par l'IA."
+    "footerTagline": "Protocole ouvert pour la délibération par l'IA.",
+    "featureByokBodyHosted": "Connectez votre compte OpenRouter en un clic. Choisissez parmi des centaines de modèles, dont des gratuits, et payez OpenRouter directement pour le reste. Parloir est gratuit.",
+    "footerPrivacy": "Confidentialité",
+    "footerTerms": "Conditions",
+    "footerSource": "Code source sur GitHub"
   },
   "Auth": {
     "signInTitle": "Se connecter",
@@ -56,7 +60,14 @@
     "signInLink": "Se connecter",
     "signUpLink": "S'inscrire",
     "signInFailed": "Échec de la connexion.",
-    "signUpFailed": "Échec de la création du compte."
+    "signUpFailed": "Échec de la création du compte.",
+    "errorUserExists": "Un compte existe déjà avec ce courriel. Connectez-vous plutôt.",
+    "errorInvalidCredentials": "Courriel ou mot de passe incorrect.",
+    "errorPasswordShort": "Utilisez un mot de passe d'au moins 12 caractères.",
+    "errorEmailNotVerified": "Confirmez d'abord votre courriel : cherchez le lien que nous vous avons envoyé.",
+    "errorInvalidEmail": "Cette adresse courriel ne semble pas valide.",
+    "checkInbox": "Vérifiez votre boîte de réception : nous avons envoyé un lien de confirmation à {email}. Ouvrez-le pour terminer la création de votre compte.",
+    "consent": "En créant un compte, vous acceptez les <terms>conditions d'utilisation</terms> et la <privacy>politique de confidentialité</privacy>."
   },
   "SessionsDashboard": {
     "title": "Vos séances",
@@ -196,7 +207,13 @@
     "googleHint": "Clé API pour les modèles Gemini.",
     "ollamaHint": "Exécuter des modèles localement avec Ollama.",
     "lmstudioHint": "Serveur local compatible OpenAI.",
-    "privacy": "Les clés sont chiffrées au repos et servent uniquement à exécuter vos débats. La déconnexion supprime la clé de Parloir."
+    "privacy": "Les clés sont chiffrées au repos et servent uniquement à exécuter vos débats. La déconnexion supprime la clé de Parloir.",
+    "deleteTitle": "Supprimer le compte",
+    "deleteBody": "Supprime définitivement votre compte, votre clé OpenRouter enregistrée et tous vos débats. Cette action est irréversible.",
+    "deleteButton": "Supprimer mon compte",
+    "deleteConfirm": "Tapez {email} pour confirmer",
+    "deleteForever": "Supprimer définitivement",
+    "deleteFailed": "Impossible de supprimer le compte. Réessayez."
   },
   "Council": {
     "council": "Conseil",
@@ -271,5 +288,10 @@
     "pragmatic_operator": "Opérateur pragmatique",
     "skeptical_auditor": "Auditrice sceptique",
     "stakeholder_proxy": "Porte-parole des parties prenantes"
+  },
+  "Legal": {
+    "updated": "Dernière mise à jour : octobre 2026",
+    "privacyTitle": "Confidentialité",
+    "termsTitle": "Conditions d'utilisation"
   }
 }

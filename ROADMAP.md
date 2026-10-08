@@ -13,11 +13,13 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 - [x] Inngest workflow for durable execution
 - [x] SSE streaming endpoint
 - [x] `SessionView` React component (transcript + seats + phase indicators)
-- [ ] `/new` page with a persona picker and question form
-- [ ] Basic auth (Better Auth or Clerk) — even just single-user mode to unblock dev
+- [x] `/new` page with a persona picker and question form
+- [x] Basic auth (Better Auth)
 - [ ] Wire `buildToolset` to actually call a web search provider (Brave or Tavily)
-- [ ] Load 5 default personas into DB on first run
-- [ ] End-to-end smoke test: create session, start, watch full debate, see synthesis
+- [x] Load 5 default personas into DB on first run
+- [x] End-to-end smoke test: create session, start, watch full debate, see synthesis
+- [x] Durable per-turn steps; failed turns skip a panelist instead of killing the debate
+- [x] Live OpenRouter model catalog, free models, Connect with OpenRouter (OAuth)
 
 **Exit criteria:** can run a 3-agent × 2-round debate from the UI, watch it stream in real time, and export the result as Markdown.
 
@@ -25,7 +27,7 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 
 - [ ] Persona editor UI — create/edit/clone personas from the browser
 - [ ] Persona library browser with tags + search
-- [ ] Per-session cost meter with breakdown by persona
+- [ ] Per-session cost meter with breakdown by persona (total meter shipped)
 - [ ] Decision trail view: full transcript with round boundaries, filterable by speaker
 - [ ] Session replay — view a completed session with all phases
 - [ ] Branching: "what if we had used persona X instead?" — fork a session at any turn
@@ -43,8 +45,8 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 
 ## Phase 4 — Human-in-the-loop (1-2 weeks)
 
-- [ ] Pause button actually pauses Inngest workflow (via `step.waitForEvent`)
-- [ ] Interject input inserts a human turn between agent turns
+- [x] Pause button actually pauses Inngest workflow (via `step.waitForEvent`)
+- [x] Interject input inserts a human turn between agent turns
 - [ ] User vote/override: force a specific decision, provide reasoning
 - [ ] Swap persona mid-session (remove + add participant without restart)
 - [ ] Slack integration: post synthesis to a channel, DMs when a session completes

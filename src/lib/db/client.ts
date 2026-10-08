@@ -31,7 +31,10 @@ declare global {
   // eslint-disable-next-line no-var
   var __pg: ReturnType<typeof postgres> | undefined;
 }
-const client = globalThis.__pg ?? postgres(connectionString, { max: 10 });
+// Transaction-mode poolers (Neon "-pooler" hosts, PgBouncer) can't hold
+// named prepared statements across transactions; disable them there.
+const pooled = /-pooler\.|pgbouncer=true/.test(connectionString);
+const client = globalThis.__pg ?? postgres(connectionString, { max: 10, prepare: !pooled });
 if (process.env.NODE_ENV !== "production") globalThis.__pg = client;
 
 export const db = drizzle(client, { schema });
