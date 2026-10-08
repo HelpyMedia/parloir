@@ -18,6 +18,7 @@ import type {
   Turn,
 } from "@/lib/orchestrator/types";
 import type { HydrationBundle } from "@/lib/session-ui/types";
+import { loadFailedSeats } from "./failed-seats";
 
 function unknownPersona(id: string): Persona {
   return {
@@ -145,6 +146,11 @@ export async function loadHydrationBundle(
     participantModelOverrides: sessionRow.participantModelOverrides ?? {},
   };
 
+  const failedSeats =
+    sessionRow.status === "failed"
+      ? await loadFailedSeats(session.id, session.participantModelOverrides ?? {}).catch(() => [])
+      : [];
+
   return {
     session,
     personas,
@@ -155,5 +161,6 @@ export async function loadHydrationBundle(
     synthesis,
     lastSeq: lastEvent?.seq ?? 0,
     failure,
+    failedSeats,
   };
 }

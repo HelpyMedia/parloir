@@ -12,7 +12,8 @@ import { requireUser } from "@/lib/auth/server";
 import { assertSameOrigin } from "@/lib/api/csrf";
 import { loadProviderContext } from "@/lib/credentials/context";
 import { listTemplatePersonas } from "@/lib/personas";
-import { getCatalog, pickClassifier } from "@/lib/providers/openrouter-catalog";
+import { pickClassifier } from "@/lib/providers/openrouter-catalog";
+import { getCatalogWithHealth } from "@/lib/models/catalog";
 import { buildShortlist } from "@/lib/recommender/allowed-overrides";
 import { recommendPanel } from "@/lib/recommender/panel";
 import { RATE_LIMITS, withRateLimit } from "@/lib/rate-limit/token-bucket";
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   let catalog;
   try {
-    catalog = await getCatalog();
+    catalog = await getCatalogWithHealth();
   } catch {
     return new NextResponse(null, { status: 204 });
   }

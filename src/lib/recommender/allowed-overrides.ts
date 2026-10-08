@@ -5,7 +5,7 @@
  * so we pass the best few per lab — diversity across labs is what the
  * recommender is asked to produce.
  */
-import { byQuality, type CatalogModel } from "@/lib/providers/openrouter-catalog";
+import { byReliabilityThenQuality, type CatalogModel } from "@/lib/providers/openrouter-catalog";
 
 const PER_AUTHOR = 2;
 const MAX_MODELS = 30;
@@ -14,8 +14,8 @@ export function buildShortlist(catalog: CatalogModel[], freeOnly: boolean): Cata
   const perAuthor = new Map<string, number>();
   const out: CatalogModel[] = [];
   const pool = catalog
-    .filter((m) => m.contextLength >= 32_000 && (!freeOnly || m.isFree))
-    .sort(byQuality);
+    .filter((m) => m.contextLength >= 32_000 && !m.restricted && (!freeOnly || m.isFree))
+    .sort(byReliabilityThenQuality);
   for (const m of pool) {
     const n = perAuthor.get(m.author) ?? 0;
     if (n >= PER_AUTHOR) continue;

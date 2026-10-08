@@ -36,6 +36,10 @@ export interface CatalogModel {
   intelligence: number | null;
   /** Unix seconds. */
   created: number;
+  /** OpenRouter refused this model to Parloir recently (see src/lib/models/health.ts). */
+  restricted?: boolean;
+  /** How reliably it has answered in Parloir debates lately. */
+  reliability?: "good" | "unknown" | "flaky";
 }
 
 interface RawModel {
@@ -143,6 +147,27 @@ export function byQuality(a: CatalogModel, b: CatalogModel): number {
   return b.created - a.created;
 }
 
+const RELIABILITY_RANK = { good: 0, unknown: 1, flaky: 2 } as const;
+
+/** Models that have answered reliably first, then by quality. */
+export function byReliabilityThenQuality(a: CatalogModel, b: CatalogModel): number {
+  const ra = RELIABILITY_RANK[a.reliability ?? "unknown"];
+  const rb = RELIABILITY_RANK[b.reliability ?? "unknown"];
+  return ra !== rb ? ra - rb : byQuality(a, b);
+}
+
+/** Copies of the catalog entries with what Parloir has seen each model do. */
+export function applyHealth(
+  catalog: CatalogModel[],
+  health: Map<string, { restricted: boolean; reliability: "good" | "unknown" | "flaky" }>,
+): CatalogModel[] {
+  if (health.size === 0) return catalog;
+  return catalog.map((m) => {
+    const h = health.get(m.id);
+    return h ? { ...m, restricted: h.restricted, reliability: h.reliability } : m;
+  });
+}
+
 /** Usable for a multi-turn debate: enough context to hold a transcript. */
 function debateCapable(m: CatalogModel): boolean {
   return m.contextLength >= 32_000;
@@ -160,8 +185,8 @@ export function pickDefaultPanel(
   opts: { freeOnly: boolean },
 ): string[] {
   const pool = catalog
-    .filter((m) => debateCapable(m) && (!opts.freeOnly || m.isFree))
-    .sort(byQuality);
+    .filter((m) => debateCapable(m) && !m.restricted && (!opts.freeOnly || m.isFree))
+    .sort(byReliabilityThenQuality);
   const picked: CatalogModel[] = [];
   const authors = new Set<string>();
   for (const m of pool) {
@@ -185,9 +210,9 @@ export function pickDefaultPanel(
 export function pickJudge(catalog: CatalogModel[], panel: string[]): string | null {
   const freeOnly = panel.every((id) => catalog.find((m) => m.id === id)?.isFree ?? false);
   const candidates = catalog
-    .filter((m) => m.structured && debateCapable(m))
+    .filter((m) => m.structured && debateCapable(m) && !m.restricted)
     .filter((m) => (freeOnly ? m.isFree : m.completionPerM <= 5))
-    .sort(byQuality);
+    .sort(byReliabilityThenQuality);
   return (candidates.find((m) => !panel.includes(m.id)) ?? candidates[0])?.id ?? null;
 }
 
@@ -196,15 +221,20 @@ export function pickSecretary(catalog: CatalogModel[], panel: string[]): string 
   const seated = panel
     .map((id) => catalog.find((m) => m.id === id))
     .filter((m): m is CatalogModel => Boolean(m))
-    .sort((a, b) => Number(b.structured) - Number(a.structured) || byQuality(a, b));
+    .sort(
+      (a, b) =>
+        Number(Boolean(a.restricted)) - Number(Boolean(b.restricted)) ||
+        Number(b.structured) - Number(a.structured) ||
+        byQuality(a, b),
+    );
   return seated[0]?.id ?? panel[0] ?? null;
 }
 
 /** Cheap structured-capable model for the panel recommender. */
 export function pickClassifier(catalog: CatalogModel[], freeOnly: boolean): string[] {
   return catalog
-    .filter((m) => m.structured && (freeOnly ? m.isFree : m.completionPerM <= 5))
-    .sort(byQuality)
+    .filter((m) => m.structured && !m.restricted && (freeOnly ? m.isFree : m.completionPerM <= 5))
+    .sort(byReliabilityThenQuality)
     .slice(0, 3)
     .map((m) => m.id);
 }

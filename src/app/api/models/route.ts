@@ -8,14 +8,15 @@
 
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/server";
-import { getCatalog, pickDefaultPanel } from "@/lib/providers/openrouter-catalog";
+import { pickDefaultPanel } from "@/lib/providers/openrouter-catalog";
+import { getCatalogWithHealth } from "@/lib/models/catalog";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   await requireUser();
   try {
-    const catalog = await getCatalog();
+    const catalog = await getCatalogWithHealth();
     return NextResponse.json(
       {
         models: catalog,
@@ -24,7 +25,7 @@ export async function GET() {
           all: pickDefaultPanel(catalog, 5, { freeOnly: false }),
         },
       },
-      { headers: { "Cache-Control": "private, max-age=600" } },
+      { headers: { "Cache-Control": "private, max-age=120" } },
     );
   } catch (err) {
     console.error("[api/models] catalog unavailable", err);

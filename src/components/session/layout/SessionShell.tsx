@@ -16,6 +16,7 @@ import { TranscriptDrawer } from "../transcript/TranscriptDrawer";
 import { PhaseBar } from "./PhaseBar";
 import { StickyActionBar } from "./StickyActionBar";
 import { TopBar } from "./TopBar";
+import { FailedModelsDialog } from "./FailedModelsDialog";
 
 export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const state = useSessionStream(bundle);
@@ -26,6 +27,12 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const errorText =
     state.errorCode && tErr.has(state.errorCode) ? tErr(state.errorCode) : state.error;
   const [pausePending, setPausePending] = useState(false);
+  // Open by default once a debate fails because of its models; closable.
+  const [failedDialogDismissed, setFailedDialogDismissed] = useState(false);
+  const showFailedDialog =
+    state.phase === "failed" && state.failedSeats.length > 0 && !failedDialogDismissed;
+  const retry = useCallback(() => router.push(`/sessions/new?from=${state.sessionId}`), [router, state.sessionId]);
+  const closeFailedDialog = useCallback(() => setFailedDialogDismissed(true), []);
   const [resumePending, setResumePending] = useState(false);
 
   const sessionId = state.sessionId;
@@ -163,6 +170,15 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         </>
       )}
 
+      {showFailedDialog && (
+        <FailedModelsDialog
+          seats={state.failedSeats}
+          summary={errorText}
+          onRetry={retry}
+          onClose={closeFailedDialog}
+        />
+      )}
+
       <StickyActionBar
         phase={
           isSynthesisDone ? "completed" : isPaused ? "paused" : state.phase
@@ -170,7 +186,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         canExport={isSynthesisDone}
         pausePending={pausePending}
         onPauseToggle={isPaused ? requestResume : requestPause}
-        onRetry={() => router.push(`/sessions/new?from=${sessionId}`)}
+        onRetry={retry}
         onExport={() => {
           if (!state.synthesis) return;
           const content =

@@ -124,6 +124,7 @@ export async function runAgentTurn(params: {
 
     await storage.appendTurn(turn);
     await sink.emit({ type: "turn_complete", turn });
+    await storage.recordModelOutcome(modelId, null);
     return { ok: true, personaId: persona.id, turnId: turn.id };
   } catch (err) {
     const info = describeModelError(err);
@@ -133,9 +134,11 @@ export async function runAgentTurn(params: {
       speakerId: persona.id,
       speakerName: persona.name,
       phase,
+      modelId,
       code: info.code,
       message: info.message,
     });
+    await storage.recordModelOutcome(modelId, info.code);
     return { ok: false, personaId: persona.id, code: info.code, message: info.message };
   }
 }

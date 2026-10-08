@@ -93,6 +93,7 @@
     "model_unavailable": "This model is not available on OpenRouter right now. Pick a different one.",
     "model_restricted": "OpenRouter won't serve this model to Parloir (some free models are limited to certain apps). Pick a different one.",
     "provider_overloaded": "The model's provider is overloaded right now. Try again in a few minutes or pick another model.",
+    "content_flagged": "The model's provider flagged this request under its content rules and refused it.",
     "context_too_long": "The conversation got too long for this model. Pick a model with a larger context window.",
     "timeout": "The model took too long to answer.",
     "empty_response": "The model returned an empty answer.",
@@ -117,7 +118,12 @@
     "phaseSynthesis": "Synthesis",
     "phaseFinal": "Final",
     "failedTitle": "This debate stopped.",
-    "turnSkipped": "{name} couldn't answer:"
+    "turnSkipped": "{name} couldn't answer:",
+    "failedDialogTitle": "Some models couldn't answer",
+    "failedDialogBody": "These panelists were skipped because their model failed. Swap their models and run the debate again: your question and the rest of the panel are kept.",
+    "failedDialogSwap": "Swap these models and try again",
+    "failedDialogClose": "Close",
+    "failedDialogRestrictedNote": "Models that OpenRouter refuses are left out of default panels from now on."
   },
   "NewSession": {
     "eyebrow": "New session",
@@ -137,6 +143,7 @@
     "personasLabel": "Panel (pick 2–5)",
     "freeOnly": "Free models only",
     "freeOnlyHint": "Free models cost nothing but are limited to a set number of requests per day by OpenRouter.",
+    "freeOnlyRestricted": "OpenRouter can also restrict some free models or run out of capacity. If a model can't answer, that panelist is skipped and you'll see which model to swap.",
     "advanced": "Judge and secretary",
     "advancedHint": "The judge scores consensus between rounds; the secretary writes the final summary. Auto picks them from the live catalog.",
     "judge": "Judge",
@@ -154,6 +161,7 @@
     "estimate": "Estimated cost: {cost}",
     "estimateFree": "Estimated cost: free",
     "retryBanner": "Starting over from a previous session. Adjust the models and try again.",
+    "retryReplaced": "{name}: {model} was replaced. Last time: {reason}",
     "connectTitle": "Connect OpenRouter to start",
     "connectEyebrow": "One more step",
     "connectBody": "Parloir runs debates on your own OpenRouter account. You pay OpenRouter directly for what you use, and free models cost nothing.",
@@ -175,7 +183,10 @@
     "loading": "Loading models…",
     "count": "{count} models",
     "provider": "Provider",
-    "noModel": "No model selected"
+    "noModel": "No model selected",
+    "restricted": "Refused by OpenRouter",
+    "restrictedHint": "OpenRouter recently refused to serve this model to Parloir",
+    "flaky": "Often busy"
   },
   "Settings": {
     "title": "Settings",

@@ -25,7 +25,7 @@ import { loadPersona } from "../personas";
 import { evaluateConsensus } from "./consensus";
 import { synthesize } from "./synthesis";
 import { participantModelId, runAgentTurn, type TurnOutcome } from "./turn";
-import { DebateAbortedError, describeModelError, isAccountWideError } from "./model-errors";
+import { DebateAbortedError, describeModelError, isAccountWideError, type ModelErrorCode } from "./model-errors";
 import type { Durable } from "./durable";
 import type {
   Session,
@@ -52,6 +52,8 @@ export interface Storage {
   setParticipantSilenced(sessionId: string, personaIds: string[], silenced: boolean): Promise<void>;
   appendConsensusReport(sessionId: string, afterRound: number, report: ConsensusReport): Promise<void>;
   appendArtifact(artifact: SynthesisArtifact): Promise<void>;
+  /** Best-effort record of how a model did on one turn (null code = answered). Never throws. */
+  recordModelOutcome(modelId: string, code: ModelErrorCode | null): Promise<void>;
 }
 
 export interface DebateDeps {

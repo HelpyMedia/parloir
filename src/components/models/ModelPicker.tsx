@@ -75,7 +75,8 @@ export function ModelPicker({
     return models
       .filter((m) => !freeOnly || m.isFree)
       .filter((m) => !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
-      .sort(byQuality);
+      // Refused models stay visible (so people see why theirs vanished) but sink to the bottom.
+      .sort((a, b) => Number(Boolean(a.restricted)) - Number(Boolean(b.restricted)) || byQuality(a, b));
   }, [models, query, freeOnly]);
 
   const pick = (id: string) => {
@@ -196,8 +197,11 @@ export function ModelPicker({
                   key={m.id}
                   active={m.id === value}
                   title={m.name}
-                  badge={m.isFree ? t("free") : null}
+                  badge={m.restricted ? t("restricted") : m.reliability === "flaky" ? t("flaky") : m.isFree ? t("free") : null}
+                  badgeTone={m.restricted || m.reliability === "flaky" ? "warn" : "default"}
+                  disabled={m.restricted}
                   meta={[
+                    m.restricted ? t("restrictedHint") : null,
                     m.isFree || m.promptPerM === null
                       ? null
                       : t("perMillion", { in: formatPrice(m.promptPerM), out: formatPrice(m.completionPerM) }),
@@ -226,20 +230,25 @@ function ModelRow({
   title,
   meta,
   badge = null,
+  badgeTone = "default",
+  disabled = false,
   onPick,
 }: {
   active: boolean;
   title: string;
   meta: string;
   badge?: string | null;
+  badgeTone?: "default" | "warn";
+  disabled?: boolean;
   onPick: () => void;
 }) {
   return (
-    <li role="option" aria-selected={active}>
+    <li role="option" aria-selected={active} aria-disabled={disabled || undefined}>
       <button
         type="button"
         onClick={onPick}
-        className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-card)] focus-visible:bg-[var(--color-surface-card)] focus-visible:outline-none"
+        disabled={disabled}
+        className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-card)] focus-visible:bg-[var(--color-surface-card)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <Check
           className="mt-0.5 h-3.5 w-3.5 shrink-0"
@@ -250,7 +259,13 @@ function ModelRow({
           <span className="flex items-center gap-2">
             <span className="truncate text-sm text-[var(--color-text-primary)]">{title}</span>
             {badge && (
-              <span className="shrink-0 rounded bg-[var(--color-spot-halo)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-spot-warm)]">
+              <span
+                className={
+                  badgeTone === "warn"
+                    ? "shrink-0 rounded bg-[var(--color-danger)]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-danger)]"
+                    : "shrink-0 rounded bg-[var(--color-spot-halo)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-spot-warm)]"
+                }
+              >
                 {badge}
               </span>
             )}
