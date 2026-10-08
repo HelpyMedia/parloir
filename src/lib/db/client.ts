@@ -10,7 +10,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as schema from "./schema";
-import type { Turn, Session, SynthesisArtifact, HumanInjection, Phase } from "@/lib/orchestrator/types";
+import type {
+  Turn,
+  Session,
+  SynthesisArtifact,
+  HumanInjection,
+  Phase,
+  ConsensusReport,
+} from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
 import "@/lib/config/assert-prod";
 
@@ -24,7 +31,10 @@ declare global {
   // eslint-disable-next-line no-var
   var __pg: ReturnType<typeof postgres> | undefined;
 }
-const client = globalThis.__pg ?? postgres(connectionString, { max: 10 });
+// Transaction-mode poolers (Neon "-pooler" hosts, PgBouncer) can't hold
+// named prepared statements across transactions; disable them there.
+const pooled = /-pooler\.|pgbouncer=true/.test(connectionString);
+const client = globalThis.__pg ?? postgres(connectionString, { max: 10, prepare: !pooled });
 if (process.env.NODE_ENV !== "production") globalThis.__pg = client;
 
 export const db = drizzle(client, { schema });
@@ -103,6 +113,10 @@ export const storage: Storage = {
           inArray(schema.participants.personaId, personaIds),
         ),
       );
+  },
+
+  async appendConsensusReport(sessionId: string, afterRound: number, report: ConsensusReport) {
+    await db.insert(schema.consensusReports).values({ sessionId, afterRound, report });
   },
 
   async appendArtifact(artifact: SynthesisArtifact) {

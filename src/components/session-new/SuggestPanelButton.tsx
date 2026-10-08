@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 
 export type SuggestStatus = "idle" | "thinking" | "just-applied";
@@ -19,6 +20,7 @@ export function SuggestPanelButton({
   onUndo,
   onAutoClear,
 }: Props) {
+  const t = useTranslations("NewSession");
   // When we enter the just-applied state, auto-clear after 10s unless the
   // parent has already cleared it (e.g. because the user edited a field).
   useEffect(() => {
@@ -34,12 +36,12 @@ export function SuggestPanelButton({
         onClick={onUndo}
         className="rounded border border-[var(--color-spot-warm)] bg-[var(--color-spot-halo)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-spot-warm)] transition-colors hover:opacity-90"
       >
-        Suggested ✓ — undo
+        {t("suggestUndo")}
       </button>
     );
   }
 
-  const label = status === "thinking" ? "Thinking…" : "Suggest a panel";
+  const label = status === "thinking" ? t("suggestThinking") : t("suggest");
   const isThinking = status === "thinking";
 
   return (

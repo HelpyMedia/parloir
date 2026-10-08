@@ -44,7 +44,8 @@ export async function POST(
   if (session.createdBy !== user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (session.status !== "setup" && session.status !== "paused") {
+  // Resuming a paused debate goes through /resume, never through here.
+  if (session.status !== "setup") {
     return NextResponse.json(
       { error: `Cannot start session in status "${session.status}"` },
       { status: 409 },

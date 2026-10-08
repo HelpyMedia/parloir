@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 type Kind = "cloud" | "local";
@@ -27,6 +28,7 @@ export function ProviderForm({
   onConnected,
   onDisconnected,
 }: Props) {
+  const t = useTranslations("Settings");
   const isConnected = kind === "cloud" ? !!connected : !!currentUrl;
   const [editing, setEditing] = useState(!isConnected);
   const [value, setValue] = useState(kind === "local" ? (currentUrl ?? defaultUrl ?? "") : "");
@@ -119,7 +121,7 @@ export function ProviderForm({
                 : "var(--color-text-dim)",
             }}
           >
-            {isConnected ? "Connected" : "Not connected"}
+            {isConnected ? t("connected") : t("notConnected")}
           </span>
           {isConnected && !editing && (
             <>
@@ -128,7 +130,7 @@ export function ProviderForm({
                 onClick={() => setEditing(true)}
                 className="rounded border border-[var(--color-border-subtle)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-spot-warm)] hover:text-[var(--color-spot-warm)]"
               >
-                Edit
+                {t("edit")}
               </button>
               <button
                 type="button"
@@ -136,7 +138,7 @@ export function ProviderForm({
                 disabled={busy !== "none"}
                 className="rounded border border-[var(--color-border-subtle)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-danger)] hover:text-[var(--color-danger)] disabled:opacity-50"
               >
-                {busy === "delete" ? "…" : "Disconnect"}
+                {busy === "delete" ? "…" : t("disconnect")}
               </button>
             </>
           )}
@@ -149,7 +151,7 @@ export function ProviderForm({
             type={kind === "cloud" ? "password" : "url"}
             autoComplete="off"
             placeholder={
-              kind === "cloud" ? `${name} API key` : defaultUrl ?? "Base URL"
+              kind === "cloud" ? t("apiKeyPlaceholder", { name }) : defaultUrl ?? t("baseUrl")
             }
             value={value}
             onChange={(e) => {
@@ -165,7 +167,7 @@ export function ProviderForm({
               disabled={busy !== "none" || !value.trim()}
               className="rounded border border-[var(--color-border-subtle)] px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-spot-warm)] hover:text-[var(--color-spot-warm)] disabled:opacity-50"
             >
-              {busy === "test" ? "Testing…" : "Test"}
+              {busy === "test" ? t("testing") : t("test")}
             </button>
             <button
               type="button"
@@ -173,7 +175,7 @@ export function ProviderForm({
               disabled={busy !== "none" || !value.trim()}
               className="rounded bg-[var(--color-spot-warm)] px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-[var(--color-bg-chamber)] transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {busy === "save" ? "Saving…" : "Save"}
+              {busy === "save" ? t("saving") : t("save")}
             </button>
             {isConnected && (
               <button
@@ -186,7 +188,7 @@ export function ProviderForm({
                 }}
                 className="rounded px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-dim)] transition-colors hover:text-[var(--color-text-muted)]"
               >
-                Cancel
+                {t("cancel")}
               </button>
             )}
             {testResult && (
@@ -198,7 +200,7 @@ export function ProviderForm({
                     : "var(--color-danger)",
                 }}
               >
-                {testResult.ok ? "✓ OK" : `✗ ${testResult.detail ?? "failed"}`}
+                {testResult.ok ? t("testOk") : t("testFailed", { detail: testResult.detail ?? "failed" })}
               </span>
             )}
           </div>

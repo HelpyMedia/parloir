@@ -7,7 +7,14 @@ const intlMiddleware = createIntlMiddleware(routing);
 
 // Protected locale-prefixed pages and API paths. API paths are NOT locale-prefixed.
 const PROTECTED_PAGE_RE = /^\/(en|fr)\/(sessions|settings)(\/.*)?$/;
-const PROTECTED_API = ["/api/sessions", "/api/credentials", "/api/providers"];
+const PROTECTED_API = [
+  "/api/sessions",
+  "/api/credentials",
+  "/api/providers",
+  "/api/models",
+  "/api/openrouter",
+  "/api/account",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

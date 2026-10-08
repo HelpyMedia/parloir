@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import type { Persona } from "@/lib/orchestrator/types";
 import type { UIPersonaState } from "@/lib/session-ui/types";
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function TableScene({ personas, personaState, activeSpeakerId }: Props) {
+  const t = useTranslations("Council");
   const seats = useMemo(() => seatPositions(personas.length), [personas.length]);
   const seatByPersona = useMemo(() => {
     const map = new Map<string, SeatPosition>();
@@ -39,7 +41,7 @@ export function TableScene({ personas, personaState, activeSpeakerId }: Props) {
         viewBox={`0 0 ${STAGE_VIEWBOX.width} ${STAGE_VIEWBOX.height}`}
         className="h-full w-full"
         role="img"
-        aria-label="Council round table"
+        aria-label={t("tableLabel")}
       >
         <defs>
           <radialGradient id="table-glow" cx="50%" cy="50%" r="50%">
@@ -105,8 +107,8 @@ export function TableScene({ personas, personaState, activeSpeakerId }: Props) {
         aria-atomic="true"
       >
         {activeSpeakerId
-          ? `Now speaking: ${personas.find((p) => p.id === activeSpeakerId)?.name ?? activeSpeakerId}`
-          : "Council is listening"}
+          ? t("nowSpeaking", { name: personas.find((p) => p.id === activeSpeakerId)?.name ?? activeSpeakerId })
+          : t("listening")}
       </div>
     </div>
   );

@@ -1,29 +1,33 @@
 "use client";
 
-import { Download, Loader2, Pause, Play, Sparkles } from "lucide-react";
+import { Download, Loader2, Pause, Play, RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { Phase } from "@/lib/orchestrator/types";
 
 interface Props {
   phase: Phase;
   pausePending: boolean;
   onPauseToggle: () => void;
-  onAskRound: () => void;
   onExport: () => void;
   canExport: boolean;
+  /** Shown when the session failed: start a fresh session with the same question. */
+  onRetry?: () => void;
 }
 
 export function StickyActionBar({
   phase,
   pausePending,
   onPauseToggle,
-  onAskRound,
   onExport,
   canExport,
+  onRetry,
 }: Props) {
+  const t = useTranslations("Session");
   const isPaused = phase === "paused";
-  const isCompleted = phase === "completed" || phase === "failed";
+  const isFailed = phase === "failed";
+  const isCompleted = phase === "completed" || isFailed;
 
-  const pauseLabel = pausePending ? "Pausing…" : isPaused ? "Resume" : "Pause";
+  const pauseLabel = pausePending ? t("pausing") : isPaused ? t("resume") : t("pause");
   const pauseIcon = pausePending ? (
     <Loader2 className="h-4 w-4 animate-spin" />
   ) : isPaused ? (
@@ -33,26 +37,29 @@ export function StickyActionBar({
   );
 
   return (
-    <footer className="sticky bottom-0 flex h-16 items-center justify-between gap-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-6">
+    <footer className="sticky bottom-0 z-30 flex h-16 items-center justify-between gap-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 sm:px-6">
       <div className="flex items-center gap-2">
-        <ActionButton
-          onClick={onPauseToggle}
-          disabled={isCompleted || pausePending}
-          icon={pauseIcon}
-          label={pauseLabel}
-        />
-        <ActionButton
-          onClick={onAskRound}
-          disabled={isCompleted}
-          icon={<Sparkles className="h-4 w-4" />}
-          label="Ask another round"
-        />
+        {!isCompleted && (
+          <ActionButton
+            onClick={onPauseToggle}
+            disabled={pausePending}
+            icon={pauseIcon}
+            label={pauseLabel}
+          />
+        )}
+        {isFailed && onRetry && (
+          <ActionButton
+            onClick={onRetry}
+            icon={<RotateCcw className="h-4 w-4" />}
+            label={t("retry")}
+          />
+        )}
       </div>
       <ActionButton
         onClick={onExport}
         disabled={!canExport}
         icon={<Download className="h-4 w-4" />}
-        label="Export"
+        label={t("export")}
         variant="primary"
       />
     </footer>

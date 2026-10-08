@@ -17,6 +17,16 @@
 
 const isProd = process.env.NODE_ENV === "production";
 
+/** `pnpm build && pnpm start` on your own machine: http://localhost is fine. */
+function isLoopback(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
 let asserted = false;
 
 export function assertProdConfig(): void {
@@ -40,9 +50,9 @@ export function assertProdConfig(): void {
   const authUrl = process.env.BETTER_AUTH_URL;
   if (!authUrl) {
     errors.push("BETTER_AUTH_URL is required in production.");
-  } else if (!/^https:\/\//i.test(authUrl)) {
+  } else if (!/^https:\/\//i.test(authUrl) && !isLoopback(authUrl)) {
     errors.push(
-      `BETTER_AUTH_URL must use https:// in production (got: ${authUrl}).`,
+      `BETTER_AUTH_URL must use https:// in production (got: ${authUrl}); only localhost may use http.`,
     );
   }
   const keyB64 = process.env.PARLOIR_ENCRYPTION_KEY;

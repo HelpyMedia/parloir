@@ -1,11 +1,13 @@
+import { useTranslations } from "next-intl";
 import type { SynthesisArtifact } from "@/lib/orchestrator/types";
 
 export function KeyArgumentsList({ artifact }: { artifact: SynthesisArtifact }) {
+  const t = useTranslations("Council");
   if (artifact.keyArguments.length === 0) return null;
   return (
     <section className="space-y-3">
       <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
-        Why this wins
+        {t("whyThisWins")}
       </h2>
       <ul className="space-y-2">
         {artifact.keyArguments.map((arg, i) => (
@@ -18,7 +20,7 @@ export function KeyArgumentsList({ artifact }: { artifact: SynthesisArtifact }) 
             </p>
             {arg.proponents.length > 0 && (
               <div className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-                supported by {arg.proponents.join(", ")}
+                {t("supportedBy", { names: arg.proponents.join(", ") })}
               </div>
             )}
           </li>

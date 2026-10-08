@@ -1,7 +1,9 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import { useSessionStream } from "@/hooks/useSessionStream";
 import { deriveInsights } from "@/lib/session-ui/derive";
 import type { HydrationBundle } from "@/lib/session-ui/types";
@@ -18,6 +20,11 @@ import { TopBar } from "./TopBar";
 export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
   const state = useSessionStream(bundle);
   const insights = deriveInsights(state);
+  const t = useTranslations("Session");
+  const tErr = useTranslations("Errors");
+  const router = useRouter();
+  const errorText =
+    state.errorCode && tErr.has(state.errorCode) ? tErr(state.errorCode) : state.error;
   const [pausePending, setPausePending] = useState(false);
   const [resumePending, setResumePending] = useState(false);
 
@@ -91,13 +98,27 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         totalCostUsd={state.totalCostUsd}
       />
       <PhaseBar phase={state.phase} />
-      {state.error && (
+      {errorText && (
         <div
           role="alert"
           className="border-b border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-6 py-2 text-sm text-[var(--color-danger)]"
         >
-          {state.error}
+          {state.phase === "failed" && <strong className="mr-2">{t("failedTitle")}</strong>}
+          {errorText}
         </div>
+      )}
+      {state.notices.length > 0 && state.phase !== "completed" && (
+        <ul
+          aria-live="polite"
+          className="border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-6 py-2 text-xs text-[var(--color-text-muted)]"
+        >
+          {state.notices.map((n) => (
+            <li key={n.seqKey}>
+              {t("turnSkipped", { name: n.speakerName })}{" "}
+              {tErr.has(n.code) ? tErr(n.code) : n.message}
+            </li>
+          ))}
+        </ul>
       )}
 
       {isSynthesisDone && state.synthesis ? (
@@ -106,12 +127,13 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         </main>
       ) : (
         <>
-          <div className="relative flex items-start border-b border-[var(--color-border-subtle)]">
+          <div className="relative flex flex-col border-b border-[var(--color-border-subtle)] lg:flex-row lg:items-start">
             <PersonaRail
               personas={state.personas}
               personaState={state.personaState}
+              models={state.session.participantModelOverrides}
             />
-            <div className="relative flex flex-1 items-stretch self-start">
+            <div className="relative flex w-full flex-1 items-stretch self-start lg:w-auto">
               <CouncilStage
                 personas={state.personas}
                 personaState={state.personaState}
@@ -147,7 +169,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
         canExport={isSynthesisDone}
         pausePending={pausePending}
         onPauseToggle={isPaused ? requestResume : requestPause}
-        onAskRound={requestPause /* TODO: replace when ask-round plan ships */}
+        onRetry={() => router.push(`/sessions/new?from=${sessionId}`)}
         onExport={() => {
           if (!state.synthesis) return;
           const content =

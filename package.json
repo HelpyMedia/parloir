@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
+    "vercel-build": "tsx scripts/migrate.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -15,7 +16,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "inngest:dev": "npx inngest-cli@latest dev"
+    "db:deploy": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
+    "inngest:dev": "npx inngest-cli@latest dev",
+    "dev:mock-openrouter": "node scripts/dev/mock-openrouter.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",
@@ -30,7 +33,7 @@
     "clsx": "^2.1.0",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
-    "inngest": "^3.25.0",
+    "inngest": "^3.54.0",
     "lucide-react": "^1.8.0",
     "next": "^15.0.0",
     "next-intl": "^4.9.1",

@@ -1,47 +1,27 @@
 /**
- * Build the allowed-overrides list the classifier sees in its prompt.
+ * Shortlist of live catalog models the panel recommender may assign.
  *
- * Entries are assembled from the curated cloud catalog + a small hand-picked
- * set of OpenRouter fallbacks, then passed through normalizeModelIdForPicker
- * so the IDs are already safe for the picker to consume. Local model IDs
- * (ollama/, lmstudio/) are intentionally omitted in v1 — we do not live-
- * enumerate local catalogs at classifier time, and local-only users hit the
- * empty-chain 204 before ever calling the classifier anyway.
+ * The classifier prompt can't hold the whole catalog (hundreds of models),
+ * so we pass the best few per lab — diversity across labs is what the
+ * recommender is asked to produce.
  */
-import type { ProviderContext } from "@/lib/orchestrator/types";
-import { CURATED } from "@/lib/providers/catalog";
-import { normalizeModelIdForPicker } from "@/lib/providers/normalize";
+import { byQuality, type CatalogModel } from "@/lib/providers/openrouter-catalog";
 
-export interface AllowedOverride {
-  id: string;
-  label: string;
-}
+const PER_AUTHOR = 2;
+const MAX_MODELS = 30;
 
-const OPENROUTER_FALLBACKS: AllowedOverride[] = [
-  { id: "openrouter/anthropic/claude-opus-4.7", label: "Claude Opus 4.7 (OpenRouter)" },
-  { id: "openrouter/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6 (OpenRouter)" },
-  { id: "openrouter/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5 (OpenRouter)" },
-  { id: "openrouter/openai/gpt-4o", label: "GPT-4o (OpenRouter)" },
-  { id: "openrouter/openai/gpt-4o-mini", label: "GPT-4o mini (OpenRouter)" },
-  { id: "openrouter/google/gemini-2.5-pro", label: "Gemini 2.5 Pro (OpenRouter)" },
-];
-
-export function buildAllowedOverrides(ctx: ProviderContext): AllowedOverride[] {
-  const out: AllowedOverride[] = [];
-  const seen = new Set<string>();
-
-  const push = (raw: AllowedOverride) => {
-    const normalized = normalizeModelIdForPicker(raw.id, ctx);
-    if (!normalized) return;
-    if (seen.has(normalized)) return;
-    seen.add(normalized);
-    out.push({ id: normalized, label: raw.label });
-  };
-
-  for (const entry of CURATED.anthropic) push(entry);
-  for (const entry of CURATED.openai) push(entry);
-  for (const entry of CURATED.google) push(entry);
-  for (const entry of OPENROUTER_FALLBACKS) push(entry);
-
+export function buildShortlist(catalog: CatalogModel[], freeOnly: boolean): CatalogModel[] {
+  const perAuthor = new Map<string, number>();
+  const out: CatalogModel[] = [];
+  const pool = catalog
+    .filter((m) => m.contextLength >= 32_000 && (!freeOnly || m.isFree))
+    .sort(byQuality);
+  for (const m of pool) {
+    const n = perAuthor.get(m.author) ?? 0;
+    if (n >= PER_AUTHOR) continue;
+    perAuthor.set(m.author, n + 1);
+    out.push(m);
+    if (out.length >= MAX_MODELS) break;
+  }
   return out;
 }

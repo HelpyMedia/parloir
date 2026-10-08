@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { accentVar } from "@/lib/session-ui/persona-accent";
@@ -17,6 +18,7 @@ interface Props {
 const CONDENSED_CHARS = 420;
 
 export function TurnCard({ turn, live, onJumpToRef }: Props) {
+  const t = useTranslations("Council");
   const [expanded, setExpanded] = useState(false);
   const showFull = live || expanded || turn.content.length <= CONDENSED_CHARS;
   const displayed = showFull
@@ -38,7 +40,8 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
           {turn.speakerName}
         </span>
         <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-          {turn.phase} · R{turn.roundNumber} · T{turn.turnIndex}
+          {t(`phase_${turn.phase}`)}
+          {turn.roundNumber > 0 ? ` · ${t("round", { n: turn.roundNumber })}` : ""}
         </span>
         {live && (
           <span
@@ -47,9 +50,14 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
             aria-hidden
           />
         )}
-        <span className="ml-auto font-mono text-[10px] text-[var(--color-text-dim)]">
-          {turn.tokensIn}→{turn.tokensOut} · ${turn.costUsd.toFixed(4)}
-        </span>
+        {turn.speakerRole === "agent" && !live && (
+          <span
+            className="ml-auto font-mono text-[10px] text-[var(--color-text-dim)]"
+            title={turn.model}
+          >
+            {turn.model.replace(/^openrouter\//, "")} · ${turn.costUsd.toFixed(4)}
+          </span>
+        )}
       </header>
 
       <div className="relative">
@@ -69,7 +77,7 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
           onClick={() => setExpanded(true)}
           className="mt-2 cursor-pointer font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-spot-warm)]"
         >
-          Expand turn ›
+          {t("expandTurn")}
         </button>
       )}
 
@@ -84,7 +92,7 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
       {(turn.references?.length ?? 0) > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-            Cites
+            {t("cites")}
           </span>
           {turn.references!.map((ref) => (
             <ReferenceChip key={ref} turnId={ref} onJump={onJumpToRef} />

@@ -1,9 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Download } from "lucide-react";
 import type { SynthesisArtifact } from "@/lib/orchestrator/types";
 
 export function ExportMenu({ artifact }: { artifact: SynthesisArtifact }) {
+  const t = useTranslations("Council");
   const downloadMarkdown = () => {
     const blob = new Blob([artifact.transcriptMarkdown || artifact.decision], {
       type: "text/markdown;charset=utf-8",
@@ -24,7 +26,7 @@ export function ExportMenu({ artifact }: { artifact: SynthesisArtifact }) {
         className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--color-spot-warm)] px-3 py-1.5 text-sm text-[var(--color-spot-warm)] transition-colors hover:bg-[var(--color-spot-halo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-spot-warm)]"
       >
         <Download className="h-4 w-4" />
-        Export markdown
+        {t("exportMarkdown")}
       </button>
     </div>
   );

@@ -124,18 +124,31 @@ export interface ProtocolConfig {
   requireNovelty: boolean;
   /** Which model plays the judge. Cheap + fast recommended. */
   judgeModel: string;
-  /** Which model plays the secretary (synthesis). Expensive + smart recommended. */
+  /**
+   * Which model plays the secretary (synthesis). Expensive + smart recommended.
+   * Empty string = pick automatically from the panel's models.
+   */
   synthesizerModel: string;
+  /**
+   * UI language at creation time. Drives the export's section headings;
+   * model output follows the language of the question regardless.
+   */
+  locale?: "en" | "fr";
 }
 
+/**
+ * Judge and secretary default to "" (auto): they are picked at run time from
+ * the session's own panel, so no model ID is pinned in code. See
+ * src/lib/providers/defaults.ts.
+ */
 export const DEFAULT_PROTOCOL: ProtocolConfig = {
   maxCritiqueRounds: 2,
   consensusThreshold: 0.75,
   enableAdaptiveRound: true,
   hideConfidenceScores: true,
   requireNovelty: true,
-  judgeModel: "anthropic/claude-haiku-4-5",
-  synthesizerModel: "anthropic/claude-opus-4-7",
+  judgeModel: "",
+  synthesizerModel: "",
 };
 
 /** The session as a whole. */
@@ -208,9 +221,17 @@ export type StreamEvent =
   | { type: "turn_start"; speakerId: string; speakerName: string; phase: Phase }
   | { type: "turn_delta"; speakerId: string; textDelta: string }
   | { type: "turn_complete"; turn: Turn }
+  | {
+      type: "turn_failed";
+      speakerId: string;
+      speakerName: string;
+      phase: Phase;
+      code: string;
+      message: string;
+    }
   | { type: "tool_call"; turnId: string; toolName: string; args: unknown }
   | { type: "tool_result"; turnId: string; toolName: string; result: unknown }
   | { type: "consensus_report"; report: ConsensusReport }
   | { type: "synthesis_complete"; artifact: SynthesisArtifact }
   | { type: "human_injection_request"; prompt: string }
-  | { type: "error"; message: string; recoverable: boolean };
+  | { type: "error"; message: string; recoverable: boolean; code?: string };

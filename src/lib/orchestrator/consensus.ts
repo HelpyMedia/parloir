@@ -71,6 +71,8 @@ export async function evaluateConsensus(params: {
     ctx,
     schema: ConsensusSchema,
     temperature: 0.2,
+    attemptKind: "consensus",
+    deadline: Date.now() + 240_000,
     messages: [
       {
         role: "system",
@@ -82,7 +84,8 @@ export async function evaluateConsensus(params: {
           "compatible reasons) vs. SURFACE agreement (people saying similar words but meaning " +
           "different things). Rank participants by argument quality: specificity, evidence, " +
           "responsiveness to others' points. The lowest-ranked participant will be silenced " +
-          "in the next round, so be careful and defensible.",
+          "in the next round, so be careful and defensible. Write every free-text field " +
+          "(positions, questions, reasoning) in the same language as the DELIBERATION QUESTION.",
       },
       {
         role: "user",
@@ -101,8 +104,8 @@ export async function evaluateConsensus(params: {
       consensusLevel: 0.5,
       agreeingParticipants: [],
       dissentingParticipants: [],
-      majorityPosition:
-        "Judge model failed to produce a structured consensus report; proceeding without ranking.",
+      // Empty on purpose: the UI shows nothing rather than an internal error string.
+      majorityPosition: "",
       minorityPositions: [],
       unresolvedQuestions: [],
       participantRanking: participants.map((p) => ({

@@ -7,7 +7,9 @@
  *   context?: string,
  *   personaIds: string[],              // 2-5 personas
  *   protocol?: Partial<ProtocolConfig>,
- *   participantOverrides?: Record<string, string>  // personaId → modelId
+ *   participantOverrides?: Record<string, string>,  // personaId → modelId
+ *   freeOnly?: boolean,                // when filling missing models
+ *   locale?: "en" | "fr",
  * }
  *
  * Returns the created session. Client then POSTs to /start to kick off the debate.
@@ -24,9 +26,10 @@ import { withRateLimit, RATE_LIMITS } from "@/lib/rate-limit/token-bucket";
 import { respondServerError } from "@/lib/api/errors";
 import { assertSameOrigin } from "@/lib/api/csrf";
 import { syncTemplatePersonas } from "@/lib/personas/sync";
-
-// Provider prefixes accepted as model override values.
-const VALID_PROVIDER_PREFIX = /^(anthropic|openai|google|openrouter|ollama|lmstudio|vllm)\//;
+import { isAllowedModelId } from "@/lib/config/edition";
+import { listConnectedProviders } from "@/lib/credentials/service";
+import { completeModelPicks, MissingModelError } from "@/lib/sessions/model-picks";
+import { checkSessionQuota } from "@/lib/sessions/quota";
 
 class SessionCreateValidationError extends Error {
   constructor(message: string) {
@@ -34,6 +37,13 @@ class SessionCreateValidationError extends Error {
     this.name = "SessionCreateValidationError";
   }
 }
+
+// "<provider>/<model>" with a bounded character set, so a client can't stash
+// megabytes or control characters in the row.
+const ModelId = z
+  .string()
+  .max(200)
+  .regex(/^[a-z0-9_-]+\/[A-Za-z0-9._:\-/]{1,180}$/);
 
 const CreateSchema = z.object({
   title: z.string().min(1).max(200),
@@ -47,22 +57,13 @@ const CreateSchema = z.object({
       enableAdaptiveRound: z.boolean().optional(),
       hideConfidenceScores: z.boolean().optional(),
       requireNovelty: z.boolean().optional(),
-      judgeModel: z.string().optional(),
-      synthesizerModel: z.string().optional(),
+      judgeModel: z.union([ModelId, z.literal("")]).optional(),
+      synthesizerModel: z.union([ModelId, z.literal("")]).optional(),
     })
     .optional(),
-  // Value matches "<provider>/<model>"; provider slug is lowercase, model
-  // is a bounded set of characters the upstream SDKs accept. Also bounds
-  // overall length so a malicious client can't stash megabytes in the row.
-  participantOverrides: z
-    .record(
-      z.string(),
-      z
-        .string()
-        .max(200)
-        .regex(/^[a-z0-9_-]+\/[A-Za-z0-9._:\-/]{1,180}$/),
-    )
-    .optional(),
+  participantOverrides: z.record(z.string(), ModelId).optional(),
+  freeOnly: z.boolean().optional().default(false),
+  locale: z.enum(["en", "fr"]).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -80,53 +81,74 @@ export async function POST(req: NextRequest) {
   );
   if (limited instanceof NextResponse) return limited;
 
-  const body = await req.json();
+  const quota = await checkSessionQuota(user.id);
+  if (!quota.ok) {
+    return NextResponse.json({ error: quota.message, code: quota.code }, { status: 429 });
+  }
+
+  const body = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
   const input = parsed.data;
   const uniquePersonaIds = [...new Set(input.personaIds)];
-
   if (uniquePersonaIds.length !== input.personaIds.length) {
-    return NextResponse.json(
-      { error: "personaIds must not contain duplicates" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "personaIds must not contain duplicates" }, { status: 400 });
   }
 
-  // Validate provider prefixes on any model overrides.
-  if (input.participantOverrides) {
-    for (const [personaId, modelId] of Object.entries(input.participantOverrides)) {
-      if (!uniquePersonaIds.includes(personaId)) {
-        return NextResponse.json(
-          {
-            error: `Invalid model override for persona "${personaId}": the persona is not part of this session.`,
-          },
-          { status: 400 },
-        );
-      }
-      if (!VALID_PROVIDER_PREFIX.test(modelId)) {
-        return NextResponse.json(
-          {
-            error: `Invalid model override for persona "${personaId}": "${modelId}" does not start with a recognised provider prefix (anthropic/, openai/, google/, openrouter/, ollama/, lmstudio/, vllm/).`,
-          },
-          { status: 400 },
-        );
-      }
+  const requestedModels = [
+    ...Object.entries(input.participantOverrides ?? {}),
+    ["judge", input.protocol?.judgeModel ?? ""],
+    ["secretary", input.protocol?.synthesizerModel ?? ""],
+  ] as Array<[string, string]>;
+  for (const [who, modelId] of requestedModels) {
+    if (!modelId) continue;
+    if (who !== "judge" && who !== "secretary" && !uniquePersonaIds.includes(who)) {
+      return NextResponse.json(
+        { error: `Model given for "${who}", who is not on this panel.` },
+        { status: 400 },
+      );
+    }
+    if (!isAllowedModelId(modelId)) {
+      return NextResponse.json(
+        { error: `"${modelId}" is not a model this server can run.` },
+        { status: 400 },
+      );
     }
   }
 
-  const protocol = { ...DEFAULT_PROTOCOL, ...(input.protocol ?? {}) };
+  let picks;
+  try {
+    const connected = await listConnectedProviders(user.id);
+    picks = await completeModelPicks({
+      personaIds: uniquePersonaIds,
+      overrides: input.participantOverrides ?? {},
+      judgeModel: input.protocol?.judgeModel ?? "",
+      synthesizerModel: input.protocol?.synthesizerModel ?? "",
+      freeOnly: input.freeOnly,
+      openRouterAvailable: connected.includes("openrouter"),
+    });
+  } catch (err) {
+    if (err instanceof MissingModelError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return respondServerError("POST /api/sessions (model picks)", err);
+  }
+
+  const protocol = {
+    ...DEFAULT_PROTOCOL,
+    ...(input.protocol ?? {}),
+    judgeModel: picks.judgeModel,
+    synthesizerModel: picks.synthesizerModel,
+    locale: input.locale ?? "en",
+  };
 
   try {
     const session = await db.transaction(async (tx) => {
       const templates = await syncTemplatePersonas(tx);
       const knownPersonaIds = new Set(templates.map((persona) => persona.id));
-      const unknownPersonaIds = uniquePersonaIds.filter(
-        (personaId) => !knownPersonaIds.has(personaId),
-      );
-
+      const unknownPersonaIds = uniquePersonaIds.filter((id) => !knownPersonaIds.has(id));
       if (unknownPersonaIds.length > 0) {
         throw new SessionCreateValidationError(
           `Unknown persona ID(s): ${unknownPersonaIds.join(", ")}`,
@@ -141,7 +163,7 @@ export async function POST(req: NextRequest) {
           context: input.context,
           protocol,
           createdBy: user.id,
-          participantModelOverrides: input.participantOverrides ?? {},
+          participantModelOverrides: picks.overrides,
           status: "setup",
         })
         .returning();

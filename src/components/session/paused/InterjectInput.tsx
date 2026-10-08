@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function InterjectInput({ prompt, onSubmit, onCancel, initial = "" }: Props) {
+  const t = useTranslations("Council");
   const [value, setValue] = useState(initial);
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -39,7 +41,7 @@ export function InterjectInput({ prompt, onSubmit, onCancel, initial = "" }: Pro
         ref={ref}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Interject — your message will be inserted at the next turn boundary."
+        placeholder={t("interjectPlaceholder")}
         rows={3}
         className="resize-none rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-dim)] focus:border-[var(--color-spot-warm)] focus:outline-none"
       />
@@ -49,7 +51,7 @@ export function InterjectInput({ prompt, onSubmit, onCancel, initial = "" }: Pro
           onClick={onCancel}
           className="cursor-pointer font-mono text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
         >
-          Resume without interjecting
+          {t("resumeWithout")}
         </button>
         <button
           type="submit"
@@ -57,7 +59,7 @@ export function InterjectInput({ prompt, onSubmit, onCancel, initial = "" }: Pro
           className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--color-spot-warm)] px-3 py-1.5 text-sm text-[var(--color-spot-warm)] transition-colors hover:bg-[var(--color-spot-halo)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-spot-warm)]"
         >
           <Send className="h-4 w-4" />
-          Send
+          {t("send")}
         </button>
       </div>
     </form>

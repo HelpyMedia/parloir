@@ -1,11 +1,11 @@
 /**
  * POST /api/sessions/[id]/resume
  *
- * Sends the debate.resumed Inngest event that the paused workflow is waiting
- * on. The workflow clears the pause flags in its own transaction (see
- * createInngestControlPlane). We do NOT update the sessions row here — that
- * responsibility lives with the worker so there is a single writer for
- * pause/resume state.
+ * Clears the pause flag, then sends the `debate.resumed` event the paused
+ * workflow waits on. The flag is the source of truth: the workflow re-checks
+ * it after every wait, so a resume that lands before the workflow started
+ * waiting is never lost (the event only wakes it up sooner). Resuming before
+ * the debate reached a pause point simply cancels the pending pause.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -35,16 +35,15 @@ export async function POST(
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (!session.pauseRequestedAt) {
-    return NextResponse.json(
-      { error: "Session is not paused" },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: "Session is not paused" }, { status: 409 });
   }
 
-  await inngest.send({
-    name: "debate.resumed",
-    data: { sessionId },
-  });
+  await db
+    .update(schema.sessions)
+    .set({ pauseRequestedAt: null, updatedAt: new Date() })
+    .where(eq(schema.sessions.id, sessionId));
+
+  await inngest.send({ name: "debate.resumed", data: { sessionId } });
 
   return NextResponse.json({ resumed: true });
 }

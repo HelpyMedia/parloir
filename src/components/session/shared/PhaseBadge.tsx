@@ -1,19 +1,5 @@
+import { useTranslations } from "next-intl";
 import type { Phase } from "@/lib/orchestrator/types";
-
-const LABEL: Record<Phase, string> = {
-  setup: "Setup",
-  opening: "Opening",
-  critique: "Critique",
-  consensus_check: "Consensus",
-  adaptive_round: "Adaptive",
-  synthesis: "Synthesis",
-  completed: "Completed",
-  paused: "Paused",
-  failed: "Failed",
-  quota_exhausted: "Quota exhausted",
-  estimator_error: "Estimator error",
-  aborted: "Aborted",
-};
 
 const ACCENT: Record<Phase, string> = {
   setup: "var(--color-text-muted)",
@@ -31,9 +17,10 @@ const ACCENT: Record<Phase, string> = {
 };
 
 export function PhaseBadge({ phase, round }: { phase: Phase; round?: number }) {
+  const t = useTranslations("Council");
   const suffix =
     round !== undefined && (phase === "critique" || phase === "adaptive_round")
-      ? ` · R${round}`
+      ? ` · ${t("round", { n: round })}`
       : "";
   return (
     <span
@@ -41,7 +28,7 @@ export function PhaseBadge({ phase, round }: { phase: Phase; round?: number }) {
       style={{ borderColor: ACCENT[phase], color: ACCENT[phase] }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: ACCENT[phase] }} />
-      {LABEL[phase]}
+      {t(`phase_${phase}`)}
       {suffix}
     </span>
   );

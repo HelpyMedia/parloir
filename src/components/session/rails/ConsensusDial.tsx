@@ -1,8 +1,10 @@
+import { useTranslations } from "next-intl";
 interface Props {
   level: number; // 0..1
 }
 
 export function ConsensusDial({ level }: Props) {
+  const t = useTranslations("Council");
   const pct = Math.round(Math.max(0, Math.min(1, level)) * 100);
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
@@ -38,7 +40,7 @@ export function ConsensusDial({ level }: Props) {
           {pct}%
         </div>
         <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-          alignment
+          {t("alignment")}
         </div>
       </div>
     </div>

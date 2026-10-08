@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth/client";
 
@@ -18,26 +18,43 @@ interface AuthFormProps {
  * router.push treats `/evil` and `/en/evil` identically under the locale
  * segment, so the final URL stays on our origin.
  */
-function sanitizeNext(raw: string | null): string {
-  if (!raw) return "/sessions";
-  if (!raw.startsWith("/")) return "/sessions";
-  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/sessions";
+function sanitizeNext(raw: string | null, fallback: string): string {
+  if (!raw) return fallback;
+  if (!raw.startsWith("/")) return fallback;
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
   return raw;
 }
 
+// Better Auth error codes we translate; anything else falls back to a generic message.
+const KNOWN_ERRORS: Record<string, string> = {
+  USER_ALREADY_EXISTS: "errorUserExists",
+  INVALID_EMAIL_OR_PASSWORD: "errorInvalidCredentials",
+  PASSWORD_TOO_SHORT: "errorPasswordShort",
+  EMAIL_NOT_VERIFIED: "errorEmailNotVerified",
+  INVALID_EMAIL: "errorInvalidEmail",
+};
+
 export function AuthForm({ mode }: AuthFormProps) {
   const t = useTranslations("Auth");
+  const locale = useLocale();
   const searchParams = useSearchParams();
-  const next = sanitizeNext(searchParams.get("next"));
+  const isSignUp = mode === "signup";
+  // New accounts go straight to their first debate (which asks for an
+  // OpenRouter connection if needed); returning users to their list.
+  const next = sanitizeNext(searchParams.get("next"), isSignUp ? "/sessions/new" : "/sessions");
   const router = useRouter();
+  const [checkInbox, setCheckInbox] = useState(false);
+
+  const errorText = (err: { code?: string; message?: string } | null, fallback: string) => {
+    const key = err?.code ? KNOWN_ERRORS[err.code] : undefined;
+    return key ? t(key) : (err?.message ?? fallback);
+  };
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const isSignUp = mode === "signup";
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -49,9 +66,13 @@ export function AuthForm({ mode }: AuthFormProps) {
           email,
           password,
           name,
+          callbackURL: `/${locale}${next}`,
         });
         if (result.error) {
-          setError(result.error.message ?? t("signUpFailed"));
+          setError(errorText(result.error, t("signUpFailed")));
+        } else if (!result.data?.token) {
+          // Email verification is on: no session until the link is clicked.
+          setCheckInbox(true);
         } else {
           router.push(next);
           router.refresh();
@@ -59,7 +80,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       } else {
         const result = await authClient.signIn.email({ email, password });
         if (result.error) {
-          setError(result.error.message ?? t("signInFailed"));
+          setError(errorText(result.error, t("signInFailed")));
         } else {
           router.push(next);
           router.refresh();
@@ -83,6 +104,11 @@ export function AuthForm({ mode }: AuthFormProps) {
         {isSignUp ? t("signUpTitle") : t("signInTitle")}
       </h1>
 
+      {checkInbox ? (
+        <p className="text-sm" role="status" style={{ color: "var(--color-text-primary)" }}>
+          {t("checkInbox", { email })}
+        </p>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {isSignUp && (
           <div className="space-y-1.5">
@@ -203,7 +229,24 @@ export function AuthForm({ mode }: AuthFormProps) {
               ? t("signUpSubmit")
               : t("signInSubmit")}
         </button>
+        {isSignUp && (
+          <p className="text-xs" style={{ color: "var(--color-text-dim)" }}>
+            {t.rich("consent", {
+              terms: (chunks) => (
+                <Link href="/terms" className="underline">
+                  {chunks}
+                </Link>
+              ),
+              privacy: (chunks) => (
+                <Link href="/privacy" className="underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </p>
+        )}
       </form>
+      )}
 
       <p
         className="mt-6 text-center text-sm"

@@ -19,6 +19,7 @@ import {
   text,
   timestamp,
   integer,
+  bigint,
   jsonb,
   boolean,
   doublePrecision,
@@ -108,6 +109,15 @@ export const authVerifications = pgTable("auth_verifications", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Better Auth rate-limit counters. Stored in Postgres (not memory) so limits
+// hold across serverless instances.
+export const authRateLimits = pgTable("auth_rate_limits", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
 // ─── User credentials (encrypted BYOK API keys) ─────────────────────────────

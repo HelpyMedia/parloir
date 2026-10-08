@@ -26,6 +26,7 @@ import { createOllama } from "ollama-ai-provider-v2";
 import type { LanguageModel } from "ai";
 import type { ProviderContext } from "../orchestrator/types";
 import { normalizeLocalBaseUrl } from "../credentials/local-url";
+import { isAllowedModelId, isHosted } from "../config/edition";
 
 function devInheritsEnv(): boolean {
   // Belt-and-braces: even if the env var is somehow set in production,
@@ -61,9 +62,20 @@ function effectiveContext(ctx: ProviderContext): ProviderContext {
   return ctx;
 }
 
+// App attribution: OpenRouter lists apps that send these headers in its
+// public rankings, which is free discovery for Parloir.
+const OPENROUTER_HEADERS = {
+  "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://parloir.dev",
+  "X-Title": "Parloir",
+};
+
 function openrouterFor(ctx: ProviderContext): ReturnType<typeof createOpenRouter> | null {
   const key = ctx.cloud.openrouter;
-  return key ? createOpenRouter({ apiKey: key }) : null;
+  if (!key) return null;
+  // PARLOIR_OPENROUTER_BASE_URL: point at an OpenRouter-compatible proxy
+  // (or a local mock in tests). Unset in normal deployments.
+  const baseURL = process.env.PARLOIR_OPENROUTER_BASE_URL || undefined;
+  return createOpenRouter({ apiKey: key, headers: OPENROUTER_HEADERS, baseURL });
 }
 
 /**
@@ -72,6 +84,10 @@ function openrouterFor(ctx: ProviderContext): ReturnType<typeof createOpenRouter
  */
 export function resolveModel(modelId: string, ctx: ProviderContext): LanguageModel {
   const c = effectiveContext(ctx);
+
+  if (isHosted() && !isAllowedModelId(modelId)) {
+    throw new Error(`Model "${modelId}" is not available on this server.`);
+  }
 
   // Explicit provider prefixes first.
   if (modelId.startsWith("openrouter/")) {

@@ -3,8 +3,9 @@ import { requireUser } from "@/lib/auth/server";
 import { getCredential, listLocalUrls, normalizeLocalBaseUrl } from "@/lib/credentials/service";
 import { CURATED } from "@/lib/providers/catalog";
 import { safeFetch, SsrfBlockedError } from "@/lib/net/safe-fetch";
+import { allowedCloudProviders, allowedLocalProviders } from "@/lib/config/edition";
+import { getCatalog } from "@/lib/providers/openrouter-catalog";
 
-interface OpenRouterModel { id: string; name?: string }
 interface OllamaTagsResponse { models?: Array<{ name: string }> }
 interface OpenAICompatModels { data?: Array<{ id: string }> }
 
@@ -15,13 +16,9 @@ function upstreamErrorResponse(err: unknown): NextResponse {
   return NextResponse.json({ error: "upstream_unreachable" }, { status: 502 });
 }
 
-async function openRouterModels(apiKey: string) {
-  const r = await fetch("https://openrouter.ai/api/v1/models", {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!r.ok) throw new Error(`openrouter ${r.status}`);
-  const body = (await r.json()) as { data: OpenRouterModel[] };
-  return body.data.map((m) => ({ id: `openrouter/${m.id}`, label: m.name ?? m.id }));
+async function openRouterModels() {
+  const catalog = await getCatalog();
+  return catalog.map((m) => ({ id: m.id, label: m.name }));
 }
 
 async function ollamaModels(baseUrl: string) {
@@ -48,12 +45,16 @@ export async function GET(
 ) {
   const user = await requireUser();
   const { provider } = await params;
+  const enabled = [...allowedCloudProviders(), ...allowedLocalProviders()] as string[];
+  if (!enabled.includes(provider)) {
+    return NextResponse.json({ error: "provider not available on this server" }, { status: 403 });
+  }
 
   try {
     if (provider === "openrouter") {
       const key = await getCredential(user.id, "openrouter");
       if (!key) return NextResponse.json({ error: "provider not connected" }, { status: 409 });
-      const models = await openRouterModels(key);
+      const models = await openRouterModels();
       return NextResponse.json({ models }, {
         headers: { "Cache-Control": "private, max-age=30" },
       });

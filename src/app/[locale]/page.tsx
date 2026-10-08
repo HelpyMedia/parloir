@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import type { Metadata } from "next";
+import { isHosted } from "@/lib/config/edition";
 
 export async function generateMetadata({
   params,
@@ -43,7 +44,7 @@ export default async function LandingPage({
   ];
 
   const features = [
-    { title: t("featureByokTitle"), body: t("featureByokBody") },
+    { title: t("featureByokTitle"), body: isHosted() ? t("featureByokBodyHosted") : t("featureByokBody") },
     { title: t("featureDurableTitle"), body: t("featureDurableBody") },
     { title: t("featureStreamTitle"), body: t("featureStreamBody") },
     { title: t("featurePauseTitle"), body: t("featurePauseBody") },
@@ -122,8 +123,23 @@ export default async function LandingPage({
         </div>
       </section>
 
-      <footer className="border-t border-[var(--color-border-subtle)] pt-6 text-center text-xs text-[var(--color-text-dim)]">
-        {t("footerTagline")}
+      <footer className="flex flex-col items-center gap-3 border-t border-[var(--color-border-subtle)] pt-6 text-center text-xs text-[var(--color-text-dim)]">
+        <span>{t("footerTagline")}</span>
+        <nav className="flex flex-wrap justify-center gap-4">
+          <Link href="/privacy" className="hover:text-[var(--color-text-primary)]">
+            {t("footerPrivacy")}
+          </Link>
+          <Link href="/terms" className="hover:text-[var(--color-text-primary)]">
+            {t("footerTerms")}
+          </Link>
+          <a
+            href="https://github.com/HelpyMedia/parloir"
+            className="hover:text-[var(--color-text-primary)]"
+            rel="noreferrer"
+          >
+            {t("footerSource")}
+          </a>
+        </nav>
       </footer>
     </main>
   );
