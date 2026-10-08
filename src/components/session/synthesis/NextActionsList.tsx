@@ -1,11 +1,13 @@
+import { useTranslations } from "next-intl";
 import type { SynthesisArtifact } from "@/lib/orchestrator/types";
 
 export function NextActionsList({ artifact }: { artifact: SynthesisArtifact }) {
+  const t = useTranslations("Council");
   if (artifact.recommendedActions.length === 0) return null;
   return (
     <section className="space-y-3">
       <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
-        Recommended next actions
+        {t("nextActions")}
       </h2>
       <ol className="space-y-2">
         {artifact.recommendedActions.map((action, i) => (

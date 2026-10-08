@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { InterjectInput } from "./InterjectInput";
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function PausedOverlay({ prompt, onSubmit, onCancel }: Props) {
+  const t = useTranslations("Council");
   const [seed, setSeed] = useState("");
   return (
     <motion.div
@@ -22,9 +24,9 @@ export function PausedOverlay({ prompt, onSubmit, onCancel }: Props) {
       className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-[var(--color-bg-chamber)]/70 px-6 backdrop-blur-sm"
     >
       <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--color-spot-warm)]">
-        Session paused
+        {t("paused")}
       </span>
-      <InterjectInput prompt={prompt} initial={seed} onSubmit={onSubmit} onCancel={onCancel} />
+      <InterjectInput prompt={prompt ? t("pausedPrompt") : null} initial={seed} onSubmit={onSubmit} onCancel={onCancel} />
       <InterjectSuggestions onPick={setSeed} />
     </motion.div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import type { ConsensusReport, Persona, Phase, Turn } from "@/lib/orchestrator/types";
 import type { LiveTurn } from "@/lib/session-ui/types";
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function TranscriptDrawer({ turns, live, consensusReports, personas }: Props) {
+  const t = useTranslations("Council");
   const autoFollow = useRef(true);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function TranscriptDrawer({ turns, live, consensusReports, personas }: Pr
     <div
       className="px-6 py-4 pb-24"
       role="log"
-      aria-label="Debate transcript"
+      aria-label={t("transcriptLabel")}
     >
       <div className="mx-auto flex max-w-[960px] flex-col gap-3">
         {rendered.map((node, i) => (

@@ -1,6 +1,8 @@
 "use client";
 
+import { Menu, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { SignOutButton } from "./SignOutButton";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -16,6 +18,9 @@ const HIDE_PATHS = [/^\/signin(\/.*)?$/, /^\/signup(\/.*)?$/];
 export function GlobalNav({ user }: { user: NavUser | null }) {
   const t = useTranslations("Nav");
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Close the mobile menu whenever the route changes.
+  useEffect(() => setMenuOpen(false), [pathname]);
   if (HIDE_PATHS.some((r) => r.test(pathname))) return null;
 
   const links = user
@@ -33,7 +38,7 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)]/90 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-6">
+      <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
           className="group flex items-center gap-2 font-display text-lg tracking-tight text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-spot-warm)]"
@@ -66,7 +71,25 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
         </Link>
 
         {user ? (
-          <nav className="flex items-center gap-6">
+          <>
+          <button
+            type="button"
+            className="rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-spot-warm)] md:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="global-nav-menu"
+            aria-label={t("menu")}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+          <nav
+            id="global-nav-menu"
+            className={
+              (menuOpen ? "flex" : "hidden") +
+              " absolute inset-x-0 top-14 flex-col items-start gap-4 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-chamber)] px-4 py-4" +
+              " md:static md:flex md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0"
+            }
+          >
             {links.map((l) => (
               <Link
                 key={l.href}
@@ -87,6 +110,7 @@ export function GlobalNav({ user }: { user: NavUser | null }) {
             <SignOutButton />
             <LanguageSwitcher />
           </nav>
+          </>
         ) : (
           <nav className="flex items-center gap-4">
             <Link

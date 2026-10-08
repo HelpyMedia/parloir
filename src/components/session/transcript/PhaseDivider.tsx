@@ -1,25 +1,11 @@
+import { useTranslations } from "next-intl";
 import type { Phase } from "@/lib/orchestrator/types";
 
-const LABEL: Record<Phase, string> = {
-  setup: "Setup",
-  opening: "Opening statements",
-  critique: "Critique",
-  consensus_check: "Consensus check",
-  adaptive_round: "Adaptive round",
-  synthesis: "Synthesis",
-  completed: "Completed",
-  paused: "Paused",
-  failed: "Failed",
-  quota_exhausted: "Quota exhausted",
-  estimator_error: "Estimator error",
-  aborted: "Aborted",
-};
-
 export function PhaseDivider({ phase, round }: { phase: Phase; round: number }) {
+  const t = useTranslations("Council");
+  const base = t.has(`divider_${phase}`) ? t(`divider_${phase}`) : t(`phase_${phase}`);
   const label =
-    phase === "critique" || phase === "adaptive_round"
-      ? `${LABEL[phase]} · round ${round}`
-      : LABEL[phase];
+    phase === "critique" || phase === "adaptive_round" ? `${base} · ${t("round", { n: round })}` : base;
 
   return (
     <div className="my-4 flex items-center gap-3">

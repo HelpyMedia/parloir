@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 export type Depth = "quick" | "standard" | "deep";
 
 export const DEPTH_ROUNDS: Record<Depth, number> = {
@@ -9,9 +11,9 @@ export const DEPTH_ROUNDS: Record<Depth, number> = {
 };
 
 const OPTIONS: Array<{ id: Depth; label: string; blurb: string }> = [
-  { id: "quick", label: "Quick", blurb: "1 critique round" },
-  { id: "standard", label: "Standard", blurb: "2 critique rounds" },
-  { id: "deep", label: "Deep", blurb: "Up to 4 rounds" },
+  { id: "quick", label: "depthQuick", blurb: "depthQuickBlurb" },
+  { id: "standard", label: "depthStandard", blurb: "depthStandardBlurb" },
+  { id: "deep", label: "depthDeep", blurb: "depthDeepBlurb" },
 ];
 
 export function DepthSelector({
@@ -21,10 +23,11 @@ export function DepthSelector({
   value: Depth;
   onChange: (d: Depth) => void;
 }) {
+  const t = useTranslations("NewSession");
   return (
     <div className="space-y-2">
       <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
-        Depth
+        {t("depthLabel")}
       </div>
       <div className="grid grid-cols-3 gap-2">
         {OPTIONS.map((o) => {
@@ -45,10 +48,10 @@ export function DepthSelector({
                 className="font-display text-base"
                 style={{ color: active ? "var(--color-spot-warm)" : "var(--color-text-primary)" }}
               >
-                {o.label}
+                {t(o.label)}
               </div>
               <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-                {o.blurb}
+                {t(o.blurb)}
               </div>
             </button>
           );

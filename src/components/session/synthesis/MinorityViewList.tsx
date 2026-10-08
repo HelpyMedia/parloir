@@ -1,11 +1,13 @@
+import { useTranslations } from "next-intl";
 import type { SynthesisArtifact } from "@/lib/orchestrator/types";
 
 export function MinorityViewList({ artifact }: { artifact: SynthesisArtifact }) {
+  const t = useTranslations("Council");
   if (artifact.minorityViews.length === 0 && artifact.unresolvedConcerns.length === 0) return null;
   return (
     <section className="space-y-3">
       <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
-        Minority views & open concerns
+        {t("minorityAndConcerns")}
       </h2>
       <div className="space-y-2">
         {artifact.minorityViews.map((m, i) => (
@@ -16,7 +18,7 @@ export function MinorityViewList({ artifact }: { artifact: SynthesisArtifact }) 
             <p className="text-sm leading-relaxed text-[var(--color-dissent)]">{m.view}</p>
             {m.holders.length > 0 && (
               <div className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-dim)]">
-                held by {m.holders.join(", ")}
+                {t("heldBy", { names: m.holders.join(", ") })}
               </div>
             )}
           </div>
