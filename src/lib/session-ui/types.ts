@@ -48,8 +48,20 @@ export interface UISession {
   synthesis: SynthesisArtifact | null;
   humanInjectionPrompt: string | null;
   error: string | null;
+  /** Machine-readable reason when the session failed (see model-errors.ts). */
+  errorCode: string | null;
+  /** Non-fatal problems, e.g. a panelist whose model failed and was skipped. */
+  notices: TurnNotice[];
   lastSeq: number;
   totalCostUsd: number;
+}
+
+export interface TurnNotice {
+  seqKey: string;
+  speakerId: string;
+  speakerName: string;
+  code: string;
+  message: string;
 }
 
 export interface HydrationBundle {
@@ -61,4 +73,6 @@ export interface HydrationBundle {
   allConsensus: ConsensusReport[];
   synthesis: SynthesisArtifact | null;
   lastSeq: number;
+  /** Set when the session ended in failure, from its last error event. */
+  failure: { message: string; code: string | null } | null;
 }

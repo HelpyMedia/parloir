@@ -19,7 +19,10 @@
 import { generateText, type ModelMessage } from "ai";
 import { z } from "zod";
 import { resolveModel } from "../providers/registry";
-import { tryGenerateObject } from "./try-generate-object";
+import { attemptSignal, tryGenerateObject } from "./try-generate-object";
+
+/** Whole synthesis (structured chain + prose fallback) must fit in one step. */
+const SYNTHESIS_BUDGET_MS = 250_000;
 import type { Session, Turn, SynthesisArtifact, ProviderContext } from "./types";
 import type { StreamSink } from "./protocol";
 
@@ -51,6 +54,7 @@ export async function synthesize(params: {
   sink: StreamSink;
 }): Promise<SynthesisArtifact> {
   const { session, transcript, synthesizerModelChain, ctx } = params;
+  const deadline = Date.now() + SYNTHESIS_BUDGET_MS;
 
   const transcriptText = transcript
     .map(
@@ -67,7 +71,8 @@ export async function synthesize(params: {
         "Be concrete. Be honest about dissent — if the panel didn't agree, say so. Do not " +
         "paper over real disagreement. Confidence levels: HIGH = strong cross-agent consensus " +
         "with specific evidence; MEDIUM = rough consensus with some open questions; LOW = " +
-        "genuine unresolved disagreement, decision is a judgment call.",
+        "genuine unresolved disagreement, decision is a judgment call. Write every text field " +
+        "in the same language as the ORIGINAL QUESTION. Refer to panelists by their names.",
     },
     {
       role: "user",
@@ -88,6 +93,10 @@ export async function synthesize(params: {
     schema: SynthesisSchema,
     temperature: 0.3,
     messages,
+    attemptKind: "synthesis",
+    effort: "medium",
+    // Leave room for the prose fallback below.
+    deadline: deadline - 60_000,
   });
 
   if (structured) {
@@ -104,6 +113,8 @@ export async function synthesize(params: {
   }
 
   for (const modelId of synthesizerModelChain) {
+    const signal = attemptSignal(deadline);
+    if (!signal) break;
     try {
       const { text } = await generateText({
         model: ctx.resolveModel
@@ -111,7 +122,11 @@ export async function synthesize(params: {
           : resolveModel(modelId, ctx),
         temperature: 0.3,
         messages,
+        maxRetries: 1,
+        abortSignal: signal,
+        providerOptions: { openrouter: { usage: { include: true } } },
       });
+      if (!text.trim()) continue;
       return {
         sessionId: session.id,
         decision: text.slice(0, 500),
@@ -119,9 +134,7 @@ export async function synthesize(params: {
         keyArguments: [],
         tradeoffs: [],
         minorityViews: [],
-        unresolvedConcerns: [
-          `Structured synthesis failed; this is a prose-only fallback from ${modelId}.`,
-        ],
+        unresolvedConcerns: [],
         recommendedActions: [],
         transcriptMarkdown:
           text + "\n\n---\n\n" + renderTranscriptOnly(session, transcript),
@@ -133,8 +146,51 @@ export async function synthesize(params: {
   }
 
   throw new Error(
-    "Synthesis failed: every configured model could not produce either a structured or a prose deliverable. Connect a capable cloud provider at /settings.",
+    "None of the panel's models could write the final summary. Try again with a stronger secretary model.",
   );
+}
+
+const HEADINGS = {
+  en: {
+    question: "Question",
+    decision: "Decision",
+    confidence: "Confidence",
+    keyArguments: "Key arguments",
+    tradeoffs: "Tradeoffs",
+    minority: "Minority views",
+    unresolved: "Unresolved concerns",
+    actions: "Recommended actions",
+    transcript: "Full transcript",
+    round: "round",
+    levels: { high: "high", medium: "medium", low: "low" },
+  },
+  fr: {
+    question: "Question",
+    decision: "Décision",
+    confidence: "Niveau de confiance",
+    keyArguments: "Arguments clés",
+    tradeoffs: "Compromis",
+    minority: "Points de vue minoritaires",
+    unresolved: "Préoccupations non résolues",
+    actions: "Actions recommandées",
+    transcript: "Transcription complète",
+    round: "ronde",
+    levels: { high: "élevé", medium: "moyen", low: "faible" },
+  },
+} as const;
+
+const PHASE_LABELS: Record<"en" | "fr", Record<string, string>> = {
+  en: { opening: "opening", critique: "critique", adaptive_round: "final round", consensus_check: "consensus check", synthesis: "synthesis" },
+  fr: { opening: "ouverture", critique: "critique", adaptive_round: "ronde finale", consensus_check: "vérification du consensus", synthesis: "synthèse" },
+};
+
+function headingsFor(session: Session) {
+  return HEADINGS[session.protocol.locale === "fr" ? "fr" : "en"];
+}
+
+/** French typography puts a space before the colon. */
+function colon(session: Session) {
+  return session.protocol.locale === "fr" ? "\u00a0:" : ":";
 }
 
 function renderTranscriptMarkdown(
@@ -142,37 +198,38 @@ function renderTranscriptMarkdown(
   transcript: Turn[],
   synthesis: z.infer<typeof SynthesisSchema>,
 ): string {
+  const h = headingsFor(session);
   const lines: string[] = [];
   lines.push(`# ${session.title}`);
   lines.push("");
-  lines.push(`**Question:** ${session.question}`);
+  lines.push(`**${h.question}${colon(session)}** ${session.question}`);
   lines.push("");
-  lines.push("## Decision");
+  lines.push(`## ${h.decision}`);
   lines.push(synthesis.decision);
   lines.push("");
-  lines.push(`**Confidence:** ${synthesis.confidence}`);
+  lines.push(`**${h.confidence}${colon(session)}** ${h.levels[synthesis.confidence]}`);
   lines.push("");
-  lines.push("## Key arguments");
+  lines.push(`## ${h.keyArguments}`);
   for (const arg of synthesis.keyArguments) {
     lines.push(`- **${arg.position}** — ${arg.proponents.join(", ")}`);
   }
   lines.push("");
-  lines.push("## Tradeoffs");
+  lines.push(`## ${h.tradeoffs}`);
   for (const t of synthesis.tradeoffs) lines.push(`- ${t}`);
   lines.push("");
   if (synthesis.minorityViews.length) {
-    lines.push("## Minority views");
+    lines.push(`## ${h.minority}`);
     for (const mv of synthesis.minorityViews) {
       lines.push(`- **${mv.view}** — ${mv.holders.join(", ")}`);
     }
     lines.push("");
   }
   if (synthesis.unresolvedConcerns.length) {
-    lines.push("## Unresolved concerns");
+    lines.push(`## ${h.unresolved}`);
     for (const c of synthesis.unresolvedConcerns) lines.push(`- ${c}`);
     lines.push("");
   }
-  lines.push("## Recommended actions");
+  lines.push(`## ${h.actions}`);
   for (const a of synthesis.recommendedActions) lines.push(`- ${a}`);
   lines.push("");
   lines.push("---");
@@ -181,11 +238,14 @@ function renderTranscriptMarkdown(
 }
 
 function renderTranscriptOnly(session: Session, transcript: Turn[]): string {
+  const h = headingsFor(session);
+  const phases = PHASE_LABELS[session.protocol.locale === "fr" ? "fr" : "en"];
   const lines: string[] = [];
-  lines.push(`## Full transcript — ${session.title}`);
+  lines.push(`## ${h.transcript} — ${session.title}`);
   lines.push("");
   for (const turn of transcript) {
-    lines.push(`### ${turn.speakerName} — ${turn.phase} (round ${turn.roundNumber})`);
+    const phase = phases[turn.phase] ?? turn.phase;
+    lines.push(`### ${turn.speakerName} — ${phase} (${h.round} ${turn.roundNumber})`);
     lines.push("");
     lines.push(turn.content);
     lines.push("");

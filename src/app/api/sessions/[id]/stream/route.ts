@@ -21,6 +21,9 @@ import { getOwnedSession } from "@/lib/sessions/authz";
 // Keep the route as a Node runtime — SSE + long polling needs it.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The browser reconnects with Last-Event-ID when the platform ends this
+// request, so a long debate simply spans several connections.
+export const maxDuration = 300;
 
 const POLL_INTERVAL_MS = 500;
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -37,7 +40,14 @@ export async function GET(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const lastSeq = Number(req.nextUrl.searchParams.get("lastSeq") ?? 0);
+  // EventSource reconnects send Last-Event-ID automatically; prefer it over
+  // the seq baked into the original URL so a reconnect never replays events.
+  const fromHeader = Number(req.headers.get("last-event-id") ?? NaN);
+  const fromQuery = Number(req.nextUrl.searchParams.get("lastSeq") ?? 0);
+  const lastSeq = Math.max(
+    Number.isFinite(fromHeader) ? fromHeader : 0,
+    Number.isFinite(fromQuery) ? fromQuery : 0,
+  );
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -45,9 +55,10 @@ export async function GET(
       let cursor = lastSeq;
       let closed = false;
 
-      const send = (data: unknown, event?: string) => {
+      const send = (data: unknown, event?: string, id?: number) => {
         if (closed) return;
         const lines: string[] = [];
+        if (id !== undefined) lines.push(`id: ${id}`);
         if (event) lines.push(`event: ${event}`);
         lines.push(`data: ${JSON.stringify(data)}`);
         lines.push("", ""); // SSE requires double newline terminator
@@ -67,8 +78,15 @@ export async function GET(
         .orderBy(asc(schema.sessionEvents.seq));
 
       for (const row of backlog) {
-        send({ seq: row.seq, event: row.payload }, "turn");
+        send({ seq: row.seq, event: row.payload }, "turn", row.seq);
         cursor = row.seq;
+      }
+      const lastType = (backlog.at(-1)?.payload as { type?: string } | undefined)?.type;
+      if (lastType === "synthesis_complete" || lastType === "error") {
+        send({ reason: lastType }, "done");
+        closed = true;
+        controller.close();
+        return;
       }
 
       // 2. Heartbeat — keeps the connection alive through proxies.
@@ -92,7 +110,7 @@ export async function GET(
             .orderBy(asc(schema.sessionEvents.seq));
 
           for (const row of rows) {
-            send({ seq: row.seq, event: row.payload }, "turn");
+            send({ seq: row.seq, event: row.payload }, "turn", row.seq);
             cursor = row.seq;
 
             // If synthesis_complete or error, we can close the stream.
@@ -123,7 +141,7 @@ export async function GET(
 
       poll().catch((err) => {
         console.error("stream poll error", err);
-        send({ message: "stream error", recoverable: false }, "error");
+        send({ message: "Live updates were interrupted. Reload the page to catch up.", recoverable: true }, "error");
         closed = true;
         clearInterval(heartbeat);
         try {

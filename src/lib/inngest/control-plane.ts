@@ -21,48 +21,46 @@ import {
   clearSessionPause,
 } from "@/lib/db/client";
 
-type WorkflowStep = GetFunctionInput<typeof inngest>["step"];
-
-const RESUME_TIMEOUT = "7d"; // generous — Inngest stores state for us.
+export type WorkflowStep = GetFunctionInput<typeof inngest>["step"];
 
 export function createInngestControlPlane(
   step: WorkflowStep,
   sessionId: string,
 ): ControlPlane {
-  // Inngest memoizes step results by ID within a single function invocation.
-  // Each pause must use a distinct ID or a second wait would return instantly
-  // with the first wait's cached result.
-  let pauseCount = 0;
+  const check = (sid: string) => {
+    if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
+  };
 
   return {
     async drainInjections(sid: string): Promise<HumanInjection[]> {
-      if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
+      check(sid);
       return drainPendingInjections(sid);
     },
 
     async isPauseRequested(sid: string): Promise<boolean> {
-      if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
+      check(sid);
       return isSessionPauseRequested(sid);
     },
 
     async markPausedAtPhase(sid: string, phase: Phase): Promise<void> {
-      if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
+      check(sid);
       await markSessionPausedAtPhase(sid, phase);
     },
 
-    async waitIfPauseRequested(sid: string): Promise<boolean> {
-      if (sid !== sessionId) throw new Error("ControlPlane/session mismatch");
-      if (!(await isSessionPauseRequested(sid))) return false;
+    async clearPause(sid: string): Promise<void> {
+      check(sid);
+      await clearSessionPause(sid);
+    },
 
-      // Suspend until POST /resume sends { name: "debate.resumed", data: { sessionId } }.
-      await step.waitForEvent(`await-resume:${sid}:${pauseCount++}`, {
+    async waitForResume(sid: string, waitKey: string, timeout: string): Promise<boolean> {
+      check(sid);
+      // Resolves to the event, or null on timeout.
+      const evt = await step.waitForEvent(`await-resume:${waitKey}`, {
         event: "debate.resumed",
         match: "data.sessionId",
-        timeout: RESUME_TIMEOUT,
+        timeout,
       });
-
-      await clearSessionPause(sid);
-      return true;
+      return evt !== null;
     },
   };
 }

@@ -10,7 +10,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import * as schema from "./schema";
-import type { Turn, Session, SynthesisArtifact, HumanInjection, Phase } from "@/lib/orchestrator/types";
+import type {
+  Turn,
+  Session,
+  SynthesisArtifact,
+  HumanInjection,
+  Phase,
+  ConsensusReport,
+} from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
 import "@/lib/config/assert-prod";
 
@@ -103,6 +110,10 @@ export const storage: Storage = {
           inArray(schema.participants.personaId, personaIds),
         ),
       );
+  },
+
+  async appendConsensusReport(sessionId: string, afterRound: number, report: ConsensusReport) {
+    await db.insert(schema.consensusReports).values({ sessionId, afterRound, report });
   },
 
   async appendArtifact(artifact: SynthesisArtifact) {

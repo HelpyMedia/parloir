@@ -27,7 +27,9 @@ export function initialState(bundle: HydrationBundle): UISession {
     consensusReports: bundle.allConsensus,
     synthesis: bundle.synthesis,
     humanInjectionPrompt: null,
-    error: null,
+    error: bundle.failure?.message ?? null,
+    errorCode: bundle.failure?.code ?? null,
+    notices: [],
     lastSeq: bundle.lastSeq,
     totalCostUsd: bundle.turns.reduce((acc, t) => acc + t.costUsd, 0),
   };
@@ -92,6 +94,25 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
       };
     }
 
+    case "turn_failed": {
+      const personaState = updatePersona(state.personaState, event.speakerId, {
+        status: "waiting",
+      });
+      const notice = {
+        seqKey: `${event.speakerId}:${state.turns.length}:${state.notices.length}`,
+        speakerId: event.speakerId,
+        speakerName: event.speakerName,
+        code: event.code,
+        message: event.message,
+      };
+      return {
+        ...state,
+        personaState,
+        live: state.live?.speakerId === event.speakerId ? null : state.live,
+        notices: [...state.notices, notice].slice(-4),
+      };
+    }
+
     case "tool_call": {
       if (!state.live) return state;
       const speakerId = state.live.speakerId;
@@ -153,7 +174,13 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
       return { ...state, humanInjectionPrompt: event.prompt, phase: "paused" };
 
     case "error":
-      return { ...state, error: event.message };
+      return {
+        ...state,
+        error: event.message,
+        errorCode: event.code ?? null,
+        phase: event.recoverable ? state.phase : "failed",
+        live: event.recoverable ? state.live : null,
+      };
   }
 }
 
