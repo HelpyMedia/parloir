@@ -95,7 +95,9 @@
     "empty_response": "Le modèle a renvoyé une réponse vide.",
     "not_enough_participants": "Moins de deux panélistes ont pu répondre, il n'y avait donc rien à débattre. Réessayez avec d'autres modèles.",
     "unknown": "Le débat s'est arrêté à cause d'une erreur inattendue. La transcription jusqu'ici est sauvegardée.",
-    "synthesis_failed": "Aucun modèle du panel n'a pu rédiger la synthèse finale. La transcription est sauvegardée; réessayez avec un modèle plus puissant."
+    "synthesis_failed": "Aucun modèle du panel n'a pu rédiger la synthèse finale. La transcription est sauvegardée; réessayez avec un modèle plus puissant.",
+    "daily_limit": "Vous avez atteint la limite de débats pour aujourd'hui. Réessayez demain.",
+    "concurrent_limit": "Des débats sont déjà en cours. Attendez qu'un se termine avant d'en lancer un autre."
   },
   "Session": {
     "pause": "Pause",

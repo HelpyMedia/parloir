@@ -73,6 +73,7 @@ function fillSeats(
 
 export function NewSessionForm({ personas, connectedProviders, hasCloudProvider, initial }: Props) {
   const t = useTranslations("NewSession");
+  const tErr = useTranslations("Errors");
   const locale = useLocale();
   const router = useRouter();
   const hasOpenRouter = connectedProviders.includes("openrouter");
@@ -258,7 +259,8 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
         }),
       });
       if (!createRes.ok) {
-        const err = (await createRes.json().catch(() => ({}))) as { error?: unknown };
+        const err = (await createRes.json().catch(() => ({}))) as { error?: unknown; code?: string };
+        if (err.code && tErr.has(err.code)) throw new Error(tErr(err.code));
         throw new Error(typeof err.error === "string" ? err.error : t("createFailed"));
       }
       const { session } = (await createRes.json()) as { session: { id: string } };

@@ -95,7 +95,9 @@
     "empty_response": "The model returned an empty answer.",
     "not_enough_participants": "Fewer than two panelists could answer, so there was nothing to debate. Try again with other models.",
     "unknown": "The debate stopped because of an unexpected error. Your transcript so far is saved.",
-    "synthesis_failed": "None of the panel's models could write the final summary. The transcript is saved; try again with a stronger model."
+    "synthesis_failed": "None of the panel's models could write the final summary. The transcript is saved; try again with a stronger model.",
+    "daily_limit": "You've reached today's limit of debates. Try again tomorrow.",
+    "concurrent_limit": "You already have debates running. Wait for one to finish before starting another."
   },
   "Session": {
     "pause": "Pause",
