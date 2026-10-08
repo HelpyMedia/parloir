@@ -17,6 +17,7 @@ import type {
   HumanInjection,
   Phase,
   ConsensusReport,
+  Seats,
 } from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
 import "@/lib/config/assert-prod";
@@ -41,6 +42,23 @@ export const db = drizzle(client, { schema });
 
 // ─── Storage adapter ────────────────────────────────────────────────────────
 export const storage: Storage = {
+  async loadSeats(sessionId: string): Promise<Seats> {
+    const [row, removedRows] = await Promise.all([
+      db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
+        columns: { participantModelOverrides: true },
+      }),
+      db
+        .select({ personaId: schema.participants.personaId })
+        .from(schema.participants)
+        .where(and(eq(schema.participants.sessionId, sessionId), eq(schema.participants.removed, true))),
+    ]);
+    return {
+      overrides: row?.participantModelOverrides ?? {},
+      removed: removedRows.map((r) => r.personaId),
+    };
+  },
+
   async recordModelOutcome(modelId, code) {
     // Imported lazily: health.ts imports this module for `db`.
     const { recordModelOutcome } = await import("@/lib/models/health");
@@ -73,6 +91,7 @@ export const storage: Storage = {
     if (patch.status !== undefined) dbPatch.status = patch.status;
     if (patch.currentRound !== undefined) dbPatch.currentRound = patch.currentRound;
     if (patch.completedAt !== undefined) dbPatch.completedAt = patch.completedAt;
+    if (patch.pauseRequestedAt !== undefined) dbPatch.pauseRequestedAt = patch.pauseRequestedAt;
     await db.update(schema.sessions).set(dbPatch).where(eq(schema.sessions.id, id));
   },
 

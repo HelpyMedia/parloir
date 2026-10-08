@@ -17,8 +17,11 @@ import { PhaseBar } from "./PhaseBar";
 import { StickyActionBar } from "./StickyActionBar";
 import { TopBar } from "./TopBar";
 import { FailedModelsDialog } from "./FailedModelsDialog";
+import { ModelFixPanel } from "../paused/ModelFixPanel";
+import type { RailEditing } from "../rails/PersonaRail";
+import { useModelCatalog } from "@/components/models/useModelCatalog";
 
-export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
+export function SessionShell({ bundle, providers = [] }: { bundle: HydrationBundle; providers?: string[] }) {
   const state = useSessionStream(bundle);
   const insights = deriveInsights(state);
   const t = useTranslations("Session");
@@ -80,6 +83,68 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
     }
   }, [resumePending, sessionId]);
 
+  // --- Fixing the panel while paused ----------------------------------------
+  // Model switches and removals are saved right away; the orchestrator reads
+  // them when the debate resumes. Kept locally too, since the stream doesn't
+  // echo them back.
+  const catalog = useModelCatalog(isPaused ? providers : []);
+  const [seatEdits, setSeatEdits] = useState<Record<string, string>>({});
+  const [removedLocal, setRemovedLocal] = useState<string[]>([]);
+  const [busySeat, setBusySeat] = useState<string | null>(null);
+  const [seatError, setSeatError] = useState<string | null>(null);
+  const tCouncil = useTranslations("Council");
+  const seatModels = { ...(state.session.participantModelOverrides ?? {}), ...seatEdits };
+  const removedIds = [...new Set([...state.removedIds, ...removedLocal])];
+  const activeCount = state.participantOrder.filter((id) => !removedIds.includes(id)).length;
+
+  const seatRequest = useCallback(
+    async (personaId: string, init: RequestInit) => {
+      setBusySeat(personaId);
+      setSeatError(null);
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/seats/${encodeURIComponent(personaId)}`, init);
+        if (res.ok) return true;
+        const body = (await res.json().catch(() => ({}))) as { code?: string };
+        setSeatError(
+          body.code === "min_panel"
+            ? tCouncil("seatMinPanel")
+            : body.code === "not_paused"
+              ? tCouncil("seatNotPaused")
+              : tCouncil("seatSaveFailed"),
+        );
+        return false;
+      } catch {
+        setSeatError(tCouncil("seatSaveFailed"));
+        return false;
+      } finally {
+        setBusySeat(null);
+      }
+    },
+    [sessionId, tCouncil],
+  );
+
+  const editing: RailEditing | null = isPaused
+    ? {
+        models: catalog.models,
+        loading: catalog.loading,
+        failed: Object.fromEntries((state.modelFix ?? []).map((s) => [s.personaId, s.code])),
+        canRemove: activeCount > 2,
+        busyId: busySeat,
+        onModel: async (personaId, modelId) => {
+          const ok = await seatRequest(personaId, {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ modelId }),
+          });
+          if (ok) setSeatEdits((prev) => ({ ...prev, [personaId]: modelId }));
+        },
+        onRemove: async (personaId) => {
+          const ok = await seatRequest(personaId, { method: "DELETE" });
+          if (ok) setRemovedLocal((prev) => [...prev, personaId]);
+        },
+      }
+    : null;
+
   const submitInjection = useCallback(
     async (content: string) => {
       const res = await fetch(`/api/sessions/${sessionId}/inject`, {
@@ -139,7 +204,9 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
             <PersonaRail
               personas={state.personas}
               personaState={state.personaState}
-              models={state.session.participantModelOverrides}
+              models={seatModels}
+              removedIds={removedIds}
+              editing={editing}
             />
             <div className="relative flex w-full flex-1 items-stretch self-start lg:w-auto">
               <CouncilStage
@@ -155,6 +222,20 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
                     prompt={state.humanInjectionPrompt}
                     onSubmit={submitInjection}
                     onCancel={requestResume}
+                    replacement={
+                      state.modelFix && editing ? (
+                        <ModelFixPanel
+                          seats={state.modelFix}
+                          personas={state.personas}
+                          models={seatModels}
+                          removedIds={removedIds}
+                          editing={editing}
+                          resumePending={resumePending}
+                          error={seatError}
+                          onResume={requestResume}
+                        />
+                      ) : undefined
+                    }
                   />
                 )}
               </AnimatePresence>
@@ -166,6 +247,7 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
             live={state.live}
             consensusReports={state.consensusReports}
             personas={state.personas}
+            paused={isPaused}
           />
         </>
       )}

@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "removed" boolean DEFAULT false NOT NULL;

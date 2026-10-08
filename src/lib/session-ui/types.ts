@@ -5,8 +5,7 @@ import type {
   Session,
   SynthesisArtifact,
   ToolCall,
-  Turn,
-} from "@/lib/orchestrator/types";
+  Turn, ModelFixSeat } from "@/lib/orchestrator/types";
 
 export type PersonaStatus =
   | "listening"
@@ -54,6 +53,10 @@ export interface UISession {
   notices: TurnNotice[];
   /** Panelists whose model failed, for the failure dialog and "Try again". */
   failedSeats: FailedSeat[];
+  /** Set while the debate is paused waiting for failed models to be fixed. */
+  modelFix: ModelFixSeat[] | null;
+  /** Panelists the person took off the panel. */
+  removedIds: string[];
   lastSeq: number;
   totalCostUsd: number;
 }
@@ -88,4 +91,7 @@ export interface HydrationBundle {
   failure: { message: string; code: string | null } | null;
   /** Panelists whose model failed (only loaded for failed sessions). */
   failedSeats: FailedSeat[];
+  /** Pending model fix when the session is paused for one. */
+  modelFix: ModelFixSeat[] | null;
+  removedPersonaIds: string[];
 }

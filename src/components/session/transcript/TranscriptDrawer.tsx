@@ -13,9 +13,11 @@ interface Props {
   live: LiveTurn | null;
   consensusReports: ConsensusReport[];
   personas: Persona[];
+  /** While paused nothing new arrives, and the pause overlay needs the screen. */
+  paused?: boolean;
 }
 
-export function TranscriptDrawer({ turns, live, consensusReports, personas }: Props) {
+export function TranscriptDrawer({ turns, live, consensusReports, personas, paused = false }: Props) {
   const t = useTranslations("Council");
   const autoFollow = useRef(true);
 
@@ -33,12 +35,12 @@ export function TranscriptDrawer({ turns, live, consensusReports, personas }: Pr
   }, []);
 
   useEffect(() => {
-    if (!autoFollow.current || typeof window === "undefined") return;
+    if (paused || !autoFollow.current || typeof window === "undefined") return;
     window.scrollTo({
       top: document.documentElement.scrollHeight,
       behavior: "smooth",
     });
-  }, [turns.length, live?.text.length]);
+  }, [turns.length, live?.text.length, paused]);
 
   const jumpToTurn = (id: string) => {
     const node = document.getElementById(`turn-${id}`);

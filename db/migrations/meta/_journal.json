@@ -57,6 +57,13 @@
       "when": 1791490546989,
       "tag": "0007_model_health",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791499814856,
+      "tag": "0008_participant_removed",
+      "breakpoints": true
     }
   ]
 }

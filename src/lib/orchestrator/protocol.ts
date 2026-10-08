@@ -24,8 +24,8 @@ import { pickJudgeModelChain, pickSynthesizerModelChain } from "../providers/def
 import { loadPersona } from "../personas";
 import { evaluateConsensus } from "./consensus";
 import { synthesize } from "./synthesis";
-import { participantModelId, runAgentTurn, type TurnOutcome } from "./turn";
-import { DebateAbortedError, describeModelError, isAccountWideError, type ModelErrorCode } from "./model-errors";
+import { participantModelId, runAgentTurn } from "./turn";
+import { DebateAbortedError, describeModelError, type ModelErrorCode } from "./model-errors";
 import type { Durable } from "./durable";
 import type {
   Session,
@@ -36,8 +36,12 @@ import type {
   ConsensusReport,
   SynthesisArtifact,
   ProviderContext,
+  Seats,
 } from "./types";
 import type { ControlPlane } from "./control";
+import { assertCanContinue, Roster } from "./roster";
+import { phaseBoundary } from "./pause";
+import { canFix, pauseForModelFix, turnWithFix, MAX_FIX_ATTEMPTS } from "./model-fix";
 
 /** Anything that can emit stream events back to the UI. */
 export interface StreamSink {
@@ -52,6 +56,8 @@ export interface Storage {
   setParticipantSilenced(sessionId: string, personaIds: string[], silenced: boolean): Promise<void>;
   appendConsensusReport(sessionId: string, afterRound: number, report: ConsensusReport): Promise<void>;
   appendArtifact(artifact: SynthesisArtifact): Promise<void>;
+  /** Current panel models and removed panelists; re-read after every pause. */
+  loadSeats(sessionId: string): Promise<Seats>;
   /** Best-effort record of how a model did on one turn (null code = answered). Never throws. */
   recordModelOutcome(modelId: string, code: ModelErrorCode | null): Promise<void>;
 }
@@ -62,70 +68,6 @@ export interface DebateDeps {
   sink: StreamSink;
   controlPlane: ControlPlane;
   durable: Durable;
-}
-
-/** A participant that fails this many turns in a row is dropped from the debate. */
-const MAX_CONSECUTIVE_FAILURES = 2;
-
-/** Pause handling: one short wait first (covers a resume racing the wait), then long waits. */
-const FIRST_RESUME_WAIT = "2m";
-const LATER_RESUME_WAIT = "15m";
-const MAX_RESUME_WAITS = 96; // ≈ 24h, then the debate resumes on its own.
-
-/**
- * Tracks who is still able to speak. Derived only from memoized step
- * results, so it is identical on every replay.
- */
-class Roster {
-  private failures = new Map<string, number>();
-  private dropped = new Set<string>();
-  private spoke = new Set<string>();
-
-  constructor(private readonly participants: Participant[]) {}
-
-  record(outcome: TurnOutcome) {
-    if (outcome.ok) {
-      this.failures.set(outcome.personaId, 0);
-      this.spoke.add(outcome.personaId);
-      return;
-    }
-    const n = (this.failures.get(outcome.personaId) ?? 0) + 1;
-    this.failures.set(outcome.personaId, n);
-    // A refused model will never answer, so its seat goes now instead of
-    // spending another call; other failures may be transient.
-    if (n >= MAX_CONSECUTIVE_FAILURES || outcome.code === "model_restricted") {
-      this.dropped.add(outcome.personaId);
-    }
-  }
-
-  /** Participants still in the debate, in seat order. */
-  active(exclude: string[] = []): Participant[] {
-    return this.participants
-      .filter((p) => !p.silenced && !this.dropped.has(p.personaId) && !exclude.includes(p.personaId))
-      .sort((a, b) => a.seatIndex - b.seatIndex);
-  }
-
-  spokenCount() {
-    return this.spoke.size;
-  }
-
-  isDropped(personaId: string) {
-    return this.dropped.has(personaId);
-  }
-}
-
-function assertCanContinue(outcomes: TurnOutcome[], roster: Roster, afterOpening: boolean) {
-  const accountWide = outcomes.find((o) => !o.ok && isAccountWideError(o.code));
-  if (accountWide && !accountWide.ok) {
-    throw new DebateAbortedError(accountWide.message, accountWide.code);
-  }
-  if (afterOpening && roster.spokenCount() < 2) {
-    // Individual reasons were already streamed as turn_failed notices.
-    throw new DebateAbortedError(
-      "Fewer than two panelists could answer, so there was nothing to debate. Try again with other models.",
-      "not_enough_participants",
-    );
-  }
 }
 
 // ─── Top-level: run the full debate ─────────────────────────────────────────
@@ -153,26 +95,44 @@ export async function runDebate(
     session.currentRound = 0;
     await enterPhase("opening", 0);
     const openingSpeakers = roster.active();
-    const openingOutcomes = await Promise.all(
-      openingSpeakers.map((p, idx) =>
-        durable.step(`turn:opening:0:${p.personaId}`, () =>
-          runAgentTurn({
-            session,
-            personaId: p.personaId,
-            ctx,
-            phase: "opening",
-            roundNumber: 0,
-            turnIndex: idx,
-            storage,
-            sink,
-          }),
-        ),
-      ),
+    const openingTurn = (personaId: string, idx: number) => () =>
+      runAgentTurn({
+        session,
+        personaId,
+        ctx,
+        phase: "opening",
+        roundNumber: 0,
+        turnIndex: idx,
+        storage,
+        sink,
+      });
+    let openingOutcomes = await Promise.all(
+      openingSpeakers.map((p, idx) => durable.step(`turn:opening:0:${p.personaId}`, openingTurn(p.personaId, idx))),
     );
+    // Failed openings pause once all openings are in, then only those are
+    // redone, still blind: they read the question, not the others' answers.
+    assertCanContinue(openingOutcomes, roster, false);
+    for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
+      const failed = openingOutcomes.filter(canFix);
+      if (failed.length === 0) break;
+      await pauseForModelFix(session, failed, `opening:${attempt}`, "opening", deps, roster);
+      const redone = await Promise.all(
+        failed
+          .filter((f) => !roster.isDropped(f.personaId))
+          .map((f) =>
+            durable.step(
+              `turn:opening:0:${f.personaId}:retry:${attempt}`,
+              openingTurn(f.personaId, openingSpeakers.findIndex((p) => p.personaId === f.personaId)),
+            ),
+          ),
+      );
+      openingOutcomes = openingOutcomes.map((o) => redone.find((r) => r.personaId === o.personaId) ?? o);
+      assertCanContinue(redone, roster, false);
+    }
     openingOutcomes.forEach((o) => roster.record(o));
     assertCanContinue(openingOutcomes, roster, true);
     await exitPhase("opening", 0);
-    await phaseBoundary(session, "after-opening", "opening", deps);
+    await phaseBoundary(session, "after-opening", "opening", deps, roster);
 
     // Phase 2..N: critique rounds with consensus checks.
     let consensusReached = false;
@@ -181,7 +141,7 @@ export async function runDebate(
       await enterPhase("critique", round);
       await runRound(session, "critique", round, roster.active(), roster, deps);
       await exitPhase("critique", round);
-      await phaseBoundary(session, `after-critique-${round}`, "critique", deps);
+      await phaseBoundary(session, `after-critique-${round}`, "critique", deps, roster);
 
       const report = await runConsensusCheck(session, participants, round, deps);
 
@@ -200,7 +160,7 @@ export async function runDebate(
         const adaptiveRound = round + 1;
         session.currentRound = adaptiveRound;
         await enterPhase("adaptive_round", adaptiveRound);
-        await phaseBoundary(session, "before-adaptive", "adaptive_round", deps);
+        await phaseBoundary(session, "before-adaptive", "adaptive_round", deps, roster);
         await runAdaptiveRound(session, adaptiveRound, report, roster, deps);
         await exitPhase("adaptive_round", adaptiveRound);
         break;
@@ -208,7 +168,7 @@ export async function runDebate(
     }
 
     // Phase 5: synthesis.
-    await phaseBoundary(session, "before-synthesis", "synthesis", deps);
+    await phaseBoundary(session, "before-synthesis", "synthesis", deps, roster);
     await enterPhase("synthesis", session.currentRound);
     await runSynthesis(session, participants, deps);
     await durable.step("finish", async () => {
@@ -248,21 +208,28 @@ async function runRound(
   for (let i = 0; i < speakers.length; i++) {
     // Between-turn control point: honor a pause requested while the previous
     // speaker was streaming instead of waiting for the whole round to finish.
-    if (i > 0) await phaseBoundary(session, `${phase}-${round}-turn-${i}`, phase, deps);
+    if (i > 0) await phaseBoundary(session, `${phase}-${round}-turn-${i}`, phase, deps, roster);
 
     const p = speakers[i];
     if (roster.isDropped(p.personaId)) continue;
-    const outcome = await deps.durable.step(`turn:${phase}:${round}:${i}:${p.personaId}`, () =>
-      runAgentTurn({
-        session,
-        personaId: p.personaId,
-        ctx: deps.ctx,
-        phase,
-        roundNumber: round,
-        storage: deps.storage,
-        sink: deps.sink,
-      }),
-    );
+    const outcome = await turnWithFix({
+      session,
+      personaId: p.personaId,
+      stepId: `turn:${phase}:${round}:${i}:${p.personaId}`,
+      atPhase: phase,
+      run: () =>
+        runAgentTurn({
+          session,
+          personaId: p.personaId,
+          ctx: deps.ctx,
+          phase,
+          roundNumber: round,
+          storage: deps.storage,
+          sink: deps.sink,
+        }),
+      deps,
+      roster,
+    });
     roster.record(outcome);
     assertCanContinue([outcome], roster, false);
   }
@@ -365,97 +332,5 @@ async function runSynthesis(session: Session, participants: Participant[], deps:
       "None of the panel's models could write the final summary. The transcript is saved; try again with a stronger model.",
       "synthesis_failed",
     );
-  }
-}
-
-// ─── Phase-boundary control point ───────────────────────────────────────────
-/**
- * Called between phases and between critique turns. Appends any queued human
- * notes as human turns, then suspends durably if a pause was requested.
- *
- * The pause decision is memoized inside a step so a replay can never take a
- * different branch than the original run did.
- */
-async function phaseBoundary(
-  session: Session,
-  key: string,
-  atPhase: Phase,
-  deps: DebateDeps,
-): Promise<void> {
-  const { storage, sink, controlPlane, durable } = deps;
-
-  const paused = await durable.step(`boundary:${key}`, async () => {
-    await drainOnce(session, atPhase, deps);
-    if (!(await controlPlane.isPauseRequested(session.id))) return false;
-    await controlPlane.markPausedAtPhase(session.id, atPhase);
-    await storage.updateSession(session.id, { status: "paused" });
-    await sink.emit({
-      type: "human_injection_request",
-      prompt: "Deliberation paused. Add a note to steer the next phase, or resume without interjecting.",
-    });
-    return true;
-  });
-  if (!paused) return;
-
-  // The resume route clears the pause flag before signalling, so the flag is
-  // the source of truth; the event only wakes us up early.
-  for (let i = 0; i < MAX_RESUME_WAITS; i++) {
-    await controlPlane.waitForResume(
-      session.id,
-      `${key}:${i}`,
-      i === 0 ? FIRST_RESUME_WAIT : LATER_RESUME_WAIT,
-    );
-    const stillPaused = await durable.step(`boundary:${key}:check:${i}`, () =>
-      controlPlane.isPauseRequested(session.id),
-    );
-    if (!stillPaused) break;
-  }
-
-  await durable.step(`boundary:${key}:resume`, async () => {
-    await controlPlane.clearPause(session.id);
-    await storage.updateSession(session.id, { status: atPhase });
-    await sink.emit({ type: "phase_enter", phase: atPhase, round: session.currentRound });
-    await drainOnce(session, atPhase, deps);
-  });
-}
-
-async function drainOnce(session: Session, atPhase: Phase, deps: DebateDeps): Promise<void> {
-  const { storage, sink, controlPlane } = deps;
-  const injections = await controlPlane.drainInjections(session.id);
-  if (injections.length === 0) return;
-
-  const transcript = await storage.getTranscript(session.id);
-  let turnIndex = transcript.filter(
-    (t) => t.phase === atPhase && t.roundNumber === session.currentRound,
-  ).length;
-
-  for (const injection of injections) {
-    await sink.emit({
-      type: "turn_start",
-      speakerId: injection.createdBy,
-      speakerName: injection.createdByName,
-      phase: atPhase,
-    });
-
-    const turn: Turn = {
-      id: crypto.randomUUID(),
-      sessionId: session.id,
-      phase: atPhase,
-      roundNumber: session.currentRound,
-      turnIndex: turnIndex++,
-      speakerRole: "human",
-      speakerId: injection.createdBy,
-      speakerName: injection.createdByName,
-      content: injection.content,
-      references: [],
-      tokensIn: 0,
-      tokensOut: 0,
-      costUsd: 0,
-      model: "",
-      createdAt: new Date(),
-    };
-
-    await storage.appendTurn(turn);
-    await sink.emit({ type: "turn_complete", turn });
   }
 }

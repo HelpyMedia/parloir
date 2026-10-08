@@ -8,7 +8,9 @@
 // Model ids containing "broken" return 429 (exercise skipped turns);
 // "gated" return OpenRouter's 403 for free models limited to partner apps;
 // "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts);
-// ":batch" variants (Batch API only) return 404 like OpenRouter does.
+// ":batch" variants (Batch API only) return 404 like OpenRouter does;
+// "onlyonce" answers its first call and returns 429 after that (a model that
+// fails mid-debate).
 // GET /api/v1/key reports a free-tier account when the key contains
 // "freetier", otherwise a paid one with $25 left.
 import http from "node:http";
@@ -26,6 +28,7 @@ const models = [
   ["theta/gated:free", "Theta: Gated (free)", "0", "0", 55, []],
   ["kappa/value-chat", "Kappa: Value Chat", "0.0000002", "0.0000008", 42, ["response_format"]],
   ["mu/mid-pro:batch", "Mu: Mid Pro (batch)", "0.00000075", "0.000004", 58, ["structured_outputs"]],
+  ["xi/onlyonce", "Xi: Only Once", "0.0000002", "0.0000008", 30, []],
   ["lambda/budget", "Lambda: Budget", "0.0000005", "0.000002", 38, ["structured_outputs"]],
   ["mu/mid-pro", "Mu: Mid Pro", "0.0000015", "0.000008", 58, ["structured_outputs"]],
   ["nu/frontier-max", "Nu: Frontier Max", "0.00001", "0.00004", 70, ["structured_outputs"]],
@@ -119,6 +122,10 @@ http
       if (model.includes("broken")) {
         res.writeHead(429, { "content-type": "application/json" });
         return res.end(JSON.stringify({ error: { code: 429, message: "Rate limit exceeded: free-models-per-day" } }));
+      }
+      if (model.includes("onlyonce") && calls.filter((c) => c.model === model).length > 1) {
+        res.writeHead(429, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: { code: 429, message: "Rate limit exceeded" } }));
       }
       if (model.endsWith(":batch")) {
         res.writeHead(404, { "content-type": "application/json" });
