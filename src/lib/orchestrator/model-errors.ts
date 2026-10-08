@@ -102,6 +102,10 @@ export function describeModelError(err: unknown): ModelErrorInfo {
     code = "insufficient_credits";
   } else if (status === 429 || text.includes("rate limit")) {
     code = "rate_limited";
+  } else if (text.includes("cannot be used with the chat/completions endpoint")) {
+    // A variant that only exists for another API (e.g. ":batch"): it will
+    // never answer a debate, so treat it like a refusal, not an outage.
+    code = "model_restricted";
   } else if (status === 404 || text.includes("no endpoints found") || text.includes("not a valid model")) {
     code = "model_unavailable";
   } else if (status === 403 && (text.includes("flagged") || text.includes("moderation"))) {

@@ -7,7 +7,8 @@
 // - POST /api/v1/chat/completions  streaming or JSON; json_schema honored
 // Model ids containing "broken" return 429 (exercise skipped turns);
 // "gated" return OpenRouter's 403 for free models limited to partner apps;
-// "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts).
+// "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts);
+// ":batch" variants (Batch API only) return 404 like OpenRouter does.
 // GET /api/v1/key reports a free-tier account when the key contains
 // "freetier", otherwise a paid one with $25 left.
 import http from "node:http";
@@ -24,6 +25,7 @@ const models = [
   ["epsilon/broken:free", "Epsilon: Broken (free)", "0", "0", 30, []],
   ["theta/gated:free", "Theta: Gated (free)", "0", "0", 55, []],
   ["kappa/value-chat", "Kappa: Value Chat", "0.0000002", "0.0000008", 42, ["response_format"]],
+  ["mu/mid-pro:batch", "Mu: Mid Pro (batch)", "0.00000075", "0.000004", 58, ["structured_outputs"]],
   ["lambda/budget", "Lambda: Budget", "0.0000005", "0.000002", 38, ["structured_outputs"]],
   ["mu/mid-pro", "Mu: Mid Pro", "0.0000015", "0.000008", 58, ["structured_outputs"]],
   ["nu/frontier-max", "Nu: Frontier Max", "0.00001", "0.00004", 70, ["structured_outputs"]],
@@ -117,6 +119,10 @@ http
       if (model.includes("broken")) {
         res.writeHead(429, { "content-type": "application/json" });
         return res.end(JSON.stringify({ error: { code: 429, message: "Rate limit exceeded: free-models-per-day" } }));
+      }
+      if (model.endsWith(":batch")) {
+        res.writeHead(404, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: { code: 404, message: `${model} cannot be used with the chat/completions endpoint (adapter MockBatchAdapter).` } }));
       }
       if (model.includes("gated")) {
         res.writeHead(403, { "content-type": "application/json" });

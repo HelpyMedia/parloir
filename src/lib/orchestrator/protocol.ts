@@ -91,7 +91,11 @@ class Roster {
     }
     const n = (this.failures.get(outcome.personaId) ?? 0) + 1;
     this.failures.set(outcome.personaId, n);
-    if (n >= MAX_CONSECUTIVE_FAILURES) this.dropped.add(outcome.personaId);
+    // A refused model will never answer, so its seat goes now instead of
+    // spending another call; other failures may be transient.
+    if (n >= MAX_CONSECUTIVE_FAILURES || outcome.code === "model_restricted") {
+      this.dropped.add(outcome.personaId);
+    }
   }
 
   /** Participants still in the debate, in seat order. */
