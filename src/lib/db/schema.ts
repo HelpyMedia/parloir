@@ -274,6 +274,8 @@ export const participants = pgTable(
       .references(() => personas.id, { onDelete: "restrict" }),
     seatIndex: integer("seat_index").notNull(),
     silenced: boolean("silenced").notNull().default(false),
+    // Taken off the panel by the person during a pause; never speaks again.
+    removed: boolean("removed").notNull().default(false),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.sessionId, t.personaId] }),

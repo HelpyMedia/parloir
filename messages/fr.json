@@ -308,7 +308,19 @@
     "divider_adaptive_round": "Ronde adaptative",
     "divider_synthesis": "Synthèse",
     "round": "Ronde {n}",
-    "cost": "Coût jusqu'ici"
+    "cost": "Coût jusqu'ici",
+    "changeModelFor": "Changer le modèle de {name}",
+    "removePanelist": "Retirer du débat",
+    "railEditHint": "En pause : vous pouvez changer le modèle de n'importe quel panéliste. Les changements s'appliquent à la reprise.",
+    "removedFromPanel": "Retiré du débat",
+    "modelFixTitle": "Un modèle n'a pas pu répondre",
+    "modelFixBody": "Le débat est en pause pour que ce panéliste ne perde pas son tour. Choisissez un autre modèle ou retirez-le du débat, puis reprenez. Son tour est refait avec le nouveau modèle.",
+    "modelFixSwitched": "Nouveau modèle enregistré. Il répondra à la reprise.",
+    "modelFixRetryNote": "Reprendre sans changement réessaie le même modèle.",
+    "resume": "Reprendre",
+    "seatMinPanel": "Un débat exige au moins deux panélistes.",
+    "seatNotPaused": "Le débat n'est plus en pause.",
+    "seatSaveFailed": "Ce changement n'a pas pu être enregistré. Réessayez."
   },
   "Personas": {
     "creative_synthesizer": "Synthétiseuse créative",

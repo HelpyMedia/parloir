@@ -129,6 +129,12 @@ export async function loadHydrationBundle(
         : { message: "This debate stopped before it finished.", code: null };
   }
 
+  // Paused for a model fix: the fix request is the last thing the workflow
+  // emitted (seat edits don't emit events), so a reload can show it again.
+  const lastPayload = lastEvent?.payload as StreamEvent | undefined;
+  const modelFix =
+    sessionRow.status === "paused" && lastPayload?.type === "model_fix_request" ? lastPayload.seats : null;
+
   const session: Session = {
     id: sessionRow.id,
     title: sessionRow.title,
@@ -162,5 +168,7 @@ export async function loadHydrationBundle(
     lastSeq: lastEvent?.seq ?? 0,
     failure,
     failedSeats,
+    modelFix,
+    removedPersonaIds: participantRows.filter((r) => r.removed).map((r) => r.personaId),
   };
 }

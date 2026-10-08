@@ -80,6 +80,9 @@ export function normalizeCatalog(raw: RawModel[], now = Date.now()): CatalogMode
     const outputs = m.architecture?.output_modalities ?? ["text"];
     if (!inputs.includes("text") || !outputs.includes("text")) continue;
     if (m.expiration_date && Date.parse(m.expiration_date) < now) continue;
+    // Batch variants only work through OpenRouter's asynchronous Batch API,
+    // never chat/completions, and their half price would rank them first.
+    if (m.id.endsWith(":batch")) continue;
 
     const promptPerM = perMillion(m.pricing?.prompt);
     const completionPerM = perMillion(m.pricing?.completion);

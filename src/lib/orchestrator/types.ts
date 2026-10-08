@@ -84,6 +84,21 @@ export interface Persona {
   visibility: "private" | "team" | "public";
 }
 
+/** A panelist whose model failed, as shown when the debate pauses for a fix. */
+export interface ModelFixSeat {
+  personaId: string;
+  personaName: string;
+  modelId: string;
+  /** Error code from model-errors.ts. */
+  code: string;
+}
+
+/** The panel's current models and who was removed, re-read after every pause. */
+export interface Seats {
+  overrides: Record<string, string>;
+  removed: string[];
+}
+
 /** Participant = a persona instance in a specific session. */
 export interface Participant {
   sessionId: string;
@@ -92,6 +107,8 @@ export interface Participant {
   seatIndex: number;
   /** Silenced by the judge in the adaptive round. */
   silenced: boolean;
+  /** Removed by the person during a pause. */
+  removed?: boolean;
 }
 
 /**
@@ -236,4 +253,6 @@ export type StreamEvent =
   | { type: "consensus_report"; report: ConsensusReport }
   | { type: "synthesis_complete"; artifact: SynthesisArtifact }
   | { type: "human_injection_request"; prompt: string }
+  /** Paused because panelists' models failed: swap a model or remove the panelist, then resume. */
+  | { type: "model_fix_request"; phase: Phase; seats: ModelFixSeat[] }
   | { type: "error"; message: string; recoverable: boolean; code?: string };

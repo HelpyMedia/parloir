@@ -31,6 +31,8 @@ export function initialState(bundle: HydrationBundle): UISession {
     errorCode: bundle.failure?.code ?? null,
     notices: [],
     failedSeats: bundle.failedSeats ?? [],
+    modelFix: bundle.modelFix ?? null,
+    removedIds: bundle.removedPersonaIds ?? [],
     lastSeq: bundle.lastSeq,
     totalCostUsd: bundle.turns.reduce((acc, t) => acc + t.costUsd, 0),
   };
@@ -48,6 +50,7 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
         round: event.round,
         personaState,
         humanInjectionPrompt,
+        modelFix: event.phase === "paused" ? state.modelFix : null,
       };
     }
 
@@ -183,6 +186,9 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
 
     case "human_injection_request":
       return { ...state, humanInjectionPrompt: event.prompt, phase: "paused" };
+
+    case "model_fix_request":
+      return { ...state, modelFix: event.seats, humanInjectionPrompt: null, phase: "paused" };
 
     case "error":
       return {

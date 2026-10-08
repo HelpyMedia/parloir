@@ -308,7 +308,19 @@
     "divider_adaptive_round": "Adaptive round",
     "divider_synthesis": "Synthesis",
     "round": "Round {n}",
-    "cost": "Cost so far"
+    "cost": "Cost so far",
+    "changeModelFor": "Change model for {name}",
+    "removePanelist": "Remove from the debate",
+    "railEditHint": "Paused: you can switch any panelist's model. Changes apply when you resume.",
+    "removedFromPanel": "Removed from the debate",
+    "modelFixTitle": "A model couldn't answer",
+    "modelFixBody": "The debate is paused so this panelist doesn't miss their turn. Pick another model, or remove them from the debate, then resume. Their turn is redone with the new model.",
+    "modelFixSwitched": "New model saved. It answers when you resume.",
+    "modelFixRetryNote": "Resuming without a change retries the same model.",
+    "resume": "Resume",
+    "seatMinPanel": "A debate needs at least two panelists.",
+    "seatNotPaused": "The debate is no longer paused.",
+    "seatSaveFailed": "That change couldn't be saved. Try again."
   },
   "Personas": {
     "creative_synthesizer": "Creative Synthesizer",
