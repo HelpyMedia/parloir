@@ -115,7 +115,8 @@ export function SessionShell({ bundle }: { bundle: HydrationBundle }) {
           {state.notices.map((n) => (
             <li key={n.seqKey}>
               {t("turnSkipped", { name: n.speakerName })}{" "}
-              {tErr.has(n.code) ? tErr(n.code) : n.message}
+              {/* Errors.unknown describes a stopped debate; one skipped turn is not that. */}
+              {n.code === "unknown" ? tErr("turnFailed") : tErr.has(n.code) ? tErr(n.code) : n.message}
             </li>
           ))}
         </ul>

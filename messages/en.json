@@ -91,6 +91,8 @@
     "insufficient_credits": "Your OpenRouter account is out of credits for this model. Add credits on openrouter.ai or pick a free model.",
     "rate_limited": "This model is rate-limited right now. Free models allow a limited number of requests per day; try again later or pick another model.",
     "model_unavailable": "This model is not available on OpenRouter right now. Pick a different one.",
+    "model_restricted": "OpenRouter won't serve this model to Parloir (some free models are limited to certain apps). Pick a different one.",
+    "provider_overloaded": "The model's provider is overloaded right now. Try again in a few minutes or pick another model.",
     "context_too_long": "The conversation got too long for this model. Pick a model with a larger context window.",
     "timeout": "The model took too long to answer.",
     "empty_response": "The model returned an empty answer.",
@@ -98,7 +100,8 @@
     "unknown": "The debate stopped because of an unexpected error. Your transcript so far is saved.",
     "synthesis_failed": "None of the panel's models could write the final summary. The transcript is saved; try again with a stronger model.",
     "daily_limit": "You've reached today's limit of debates. Try again tomorrow.",
-    "concurrent_limit": "You already have debates running. Wait for one to finish before starting another."
+    "concurrent_limit": "You already have debates running. Wait for one to finish before starting another.",
+    "turnFailed": "The model call failed."
   },
   "Session": {
     "pause": "Pause",
