@@ -41,10 +41,12 @@ import type {
   ResearchOutcome,
 } from "./types";
 import type { NewSource } from "../research/sources";
+import type { CatalogModel } from "../providers/openrouter-catalog";
 import type { ControlPlane } from "./control";
 import { assertCanContinue, Roster } from "./roster";
 import { phaseBoundary } from "./pause";
 import { canFix, pauseForModelFix, turnWithFix, MAX_FIX_ATTEMPTS } from "./model-fix";
+import { MAX_FREE_SWAPS, swapFailedFreeSeats, swappable } from "./free-swap";
 
 /** Anything that can emit stream events back to the UI. */
 export interface StreamSink {
@@ -72,6 +74,10 @@ export interface Storage {
   getSources(sessionId: string): Promise<SessionSource[]>;
   /** web_search tool calls panelists made in persisted turns, for the per-session cap. */
   countToolSearches(sessionId: string): Promise<number>;
+  /** Seat a different model for one panelist (used when a free model stops answering). */
+  setSeatModel(sessionId: string, personaId: string, modelId: string): Promise<void>;
+  /** The OpenRouter catalog annotated with Parloir's model health. */
+  loadCatalog(): Promise<CatalogModel[]>;
 }
 
 export interface DebateDeps {
@@ -126,9 +132,25 @@ export async function runDebate(
     let openingOutcomes = await Promise.all(
       openingSpeakers.map((p, idx) => durable.step(`turn:opening:0:${p.personaId}`, openingTurn(p.personaId, idx))),
     );
-    // Failed openings pause once all openings are in, then only those are
-    // redone, still blind: they read the question, not the others' answers.
+    // Failed openings are redone once all openings are in, still blind: they
+    // read the question, not the others' answers. Free seats first get
+    // another free model on their own; whatever still fails pauses for a fix.
     assertCanContinue(openingOutcomes, roster, false);
+    const openingIndex = (personaId: string) => openingSpeakers.findIndex((p) => p.personaId === personaId);
+    const triedModels = new Map<string, Set<string>>();
+    for (let swap = 1; swap <= MAX_FREE_SWAPS; swap++) {
+      const failed = openingOutcomes.filter(swappable);
+      if (failed.length === 0) break;
+      const swaps = await swapFailedFreeSeats(session, failed, `opening:${swap}`, deps, triedModels);
+      if (swaps.length === 0) break;
+      const redone = await Promise.all(
+        swaps.map((s) =>
+          durable.step(`turn:opening:0:${s.personaId}:swap:${swap}`, openingTurn(s.personaId, openingIndex(s.personaId))),
+        ),
+      );
+      openingOutcomes = openingOutcomes.map((o) => redone.find((r) => r.personaId === o.personaId) ?? o);
+      assertCanContinue(redone, roster, false);
+    }
     for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
       const failed = openingOutcomes.filter(canFix);
       if (failed.length === 0) break;
@@ -139,7 +161,7 @@ export async function runDebate(
           .map((f) =>
             durable.step(
               `turn:opening:0:${f.personaId}:retry:${attempt}`,
-              openingTurn(f.personaId, openingSpeakers.findIndex((p) => p.personaId === f.personaId)),
+              openingTurn(f.personaId, openingIndex(f.personaId)),
             ),
           ),
       );

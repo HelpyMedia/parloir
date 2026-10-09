@@ -281,6 +281,16 @@ export type StreamEvent =
   | { type: "consensus_report"; report: ConsensusReport }
   | { type: "synthesis_complete"; artifact: SynthesisArtifact }
   | { type: "human_injection_request"; prompt: string }
+  /** A free model stopped answering, so the panelist was moved to another free model. */
+  | {
+      type: "model_switched";
+      personaId: string;
+      personaName: string;
+      fromModel: string;
+      toModel: string;
+      /** Why the old model failed (model-errors.ts). */
+      code: string;
+    }
   /** Paused because panelists' models failed: swap a model or remove the panelist, then resume. */
   | { type: "model_fix_request"; phase: Phase; seats: ModelFixSeat[] }
   | { type: "error"; message: string; recoverable: boolean; code?: string };

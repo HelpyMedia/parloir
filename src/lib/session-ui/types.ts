@@ -84,6 +84,8 @@ export interface TurnNotice {
   speakerName: string;
   code: string;
   message: string;
+  /** Set when the panelist was moved to another free model instead of skipped. */
+  switched?: { from: string; to: string };
 }
 
 export interface HydrationBundle {

@@ -13,6 +13,7 @@ import { PersonaChecklist } from "./PersonaChecklist";
 import { QuestionInput } from "./QuestionInput";
 import { StartButton } from "./StartButton";
 import { TierSelector } from "./TierSelector";
+import { FreeTierCallout } from "./FreeTierCallout";
 import { useOpenRouterCredit } from "./useOpenRouterCredit";
 import { MODEL_TIERS, tierOf, type ModelTier } from "@/lib/models/tiers";
 import { estimateDebateCostUsd, estimateResearchCeilingUsd, formatEstimate } from "@/lib/models/cost-estimate";
@@ -420,13 +421,16 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
               estimates={tierEstimates}
               paidDisabled={credit === "none"}
             />
-            {tier === "free" && <p className="text-xs text-[var(--color-text-dim)]">{t("freeOnlyRestricted")}</p>}
+            {tier === "free" && (
+              <FreeTierCallout credit={credit} lowCost={tierEstimates.low} onUseLow={() => applyTier("low")} />
+            )}
             {panelCost > 0 && (
               <p className="text-xs text-[var(--color-text-muted)]">
                 {t("panelEstimate", { cost: formatEstimate(panelCost) })}
               </p>
             )}
-            {researchNeedsCredit ? (
+            {/* On the Free tier the callout above already covers credit. */}
+            {tier === "free" ? null : researchNeedsCredit ? (
               <p className="text-xs text-[var(--color-text-muted)]">
                 {t("researchCreditHint")}{" "}
                 <a
