@@ -19,6 +19,10 @@ function sections(locale: string, email: string | null): { intro: string; sectio
               <li>Votre clé OpenRouter, chiffrée (AES-256-GCM) et utilisée uniquement pour lancer vos débats.</li>
               <li>Le contenu de vos séances : questions, contexte fourni, transcriptions et synthèses.</li>
               <li>Des données techniques minimales (adresse IP, navigateur) pour la sécurité et la limitation des abus.</li>
+              <li>
+                Des statistiques de visite agrégées (pages vues, site de provenance, pays, type d&apos;appareil)
+                mesurées par Vercel Web Analytics, sans témoins (cookies) et sans vous identifier.
+              </li>
             </ul>
           ),
         },
@@ -76,6 +80,10 @@ function sections(locale: string, email: string | null): { intro: string; sectio
             <li>Your OpenRouter key, encrypted (AES-256-GCM) and used only to run your debates.</li>
             <li>The content of your sessions: questions, any context you add, transcripts and summaries.</li>
             <li>Minimal technical data (IP address, browser) for security and abuse prevention.</li>
+            <li>
+              Aggregate visit statistics (pages viewed, referring site, country, device type) measured by Vercel
+              Web Analytics, without cookies and without identifying you.
+            </li>
           </ul>
         ),
       },

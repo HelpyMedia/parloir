@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { getCurrentUser } from "@/lib/auth/server";
+import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import { GlobalNav } from "@/components/nav/GlobalNav";
 import { routing } from "@/i18n/routing";
 
@@ -58,6 +59,8 @@ export default async function LocaleLayout({
           <GlobalNav user={navUser} />
           {children}
         </NextIntlClientProvider>
+        {/* Opt-in so self-hosted instances never report to anyone's Vercel account. */}
+        {process.env.PARLOIR_VERCEL_ANALYTICS === "1" && <SiteAnalytics />}
       </body>
     </html>
   );
