@@ -17,6 +17,10 @@ async function main() {
     console.log("[migrate] DATABASE_URL not set — skipping migrations.");
     return;
   }
+  // Which database a build migrates, so a preview deploy that points at
+  // production shows up in the build log. Host and name only, never the password.
+  const source = process.env.DATABASE_URL_UNPOOLED ? "DATABASE_URL_UNPOOLED" : "DATABASE_URL";
+  console.log(`[migrate] target: ${describeTarget(url)} (from ${source})`);
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
     // The embeddings table uses the vector type, so the extension must exist
@@ -26,6 +30,15 @@ async function main() {
     console.log("[migrate] database is up to date.");
   } finally {
     await sql.end();
+  }
+}
+
+function describeTarget(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname || ""}`;
+  } catch {
+    return "unparseable connection string";
   }
 }
 
