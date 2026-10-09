@@ -17,7 +17,6 @@ import { useOpenRouterCredit } from "./useOpenRouterCredit";
 import { MODEL_TIERS, tierOf, type ModelTier } from "@/lib/models/tiers";
 import { estimateDebateCostUsd, estimateResearchCeilingUsd, formatEstimate } from "@/lib/models/cost-estimate";
 import { SuggestPanelButton, type SuggestStatus } from "./SuggestPanelButton";
-import { trackDebateStarted } from "../analytics/events";
 
 export interface NewSessionInitial {
   title: string;
@@ -350,7 +349,6 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
         const err = (await startRes.json().catch(() => ({}))) as { error?: unknown };
         throw new Error(typeof err.error === "string" ? err.error : t("startFailed"));
       }
-      trackDebateStarted({ tier, panelists: selectedIds.length, rounds: DEPTH_ROUNDS[depth] });
       router.push(`/sessions/${session.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

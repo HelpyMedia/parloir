@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth/client";
-import { trackSignUp } from "@/components/analytics/events";
 
 interface AuthFormProps {
   mode: "signin" | "signup";
@@ -83,10 +82,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       });
       if (result.error) {
         setError(errorText(result.error, t("signUpFailed")));
-        return;
-      }
-      trackSignUp();
-      if (!result.data?.token) {
+      } else if (!result.data?.token) {
         // Email verification is on: no session until the link is clicked.
         setCheckInbox(true);
       } else {

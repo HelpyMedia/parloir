@@ -50,7 +50,7 @@ keys.
 | `NEXT_PUBLIC_APP_URL` | `https://app.parloir.dev` |
 | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 32` |
 | `PARLOIR_ENCRYPTION_KEY` | output of `openssl rand -base64 32` — never change it after launch |
-| `PARLOIR_VERCEL_ANALYTICS` | `1`; also enable **Analytics** in the Vercel project. Cookieless, so no consent banner. The `Sign Up` and `Debate Started` custom events need a Vercel Pro plan |
+| `PARLOIR_VERCEL_ANALYTICS` | `1`; also enable **Analytics** in the Vercel project. Cookieless, so no consent banner |
 | `PARLOIR_CONTACT_EMAIL` | address shown on /privacy and /terms |
 | `INNGEST_SERVE_ORIGIN` | optional, `https://app.parloir.dev` |
 | `RESEND_API_KEY` | optional; turns on email verification for sign-ups |
