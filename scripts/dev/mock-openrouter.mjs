@@ -15,7 +15,8 @@
 // "freetier", otherwise a paid one with $25 left.
 //
 // Web research: requests with plugins [{ id: "web" }] answer with a summary
-// and 2 fake url_citation annotations per query, or 402 (no credits) when
+// and 2 fake url_citation annotations per query (cost includes the $0.007
+// search fee, as OpenRouter reports it), or 402 (no credits) when
 // the key contains "freetier". The research gate says no search is needed
 // for questions about a cofounder / hiring (see MOCK_NO_RESEARCH), otherwise
 // it searches. Tool-capable models call web_search once in critique round 1.
@@ -197,6 +198,8 @@ http
           return res.end(JSON.stringify({ error: { code: 402, message: "Insufficient credits. Add more using https://openrouter.ai/settings/credits" } }));
         }
         const query = String(payload.messages.at(-1)?.content ?? "");
+        // Like OpenRouter, the reported cost includes the $0.007 search fee.
+        usage.cost += 0.007;
         content = `Two pages discuss ${query}. Both say plans start around $10 per seat per month; neither confirms a release date.`;
         annotations = citations(query);
       } else if (kind === "json") {

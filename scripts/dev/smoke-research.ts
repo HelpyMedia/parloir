@@ -5,15 +5,15 @@
  *
  * Runs the research gate and one webResearch call, prints the decision, the
  * sources and the cost, then makes one raw web-plugin call to settle whether
- * OpenRouter's reported cost already includes the $0.007 search fee
- * (src/lib/research/web.ts adds it when the reported cost can't include it).
+ * OpenRouter's reported cost still includes the $0.007 search fee, which
+ * src/lib/research/web.ts relies on.
  *
- * Optional: PARLOIR_SMOKE_MODEL=openrouter/<slug> (default: the catalog's
- * free judge, so any cost OpenRouter reports is the search fee; the account
- * needs credit all the same), PARLOIR_SMOKE_QUESTION="…".
+ * Optional: PARLOIR_SMOKE_MODEL=openrouter/<slug> (default: the best
+ * structured-output model in the Low cost tier; free models are often
+ * rate-limited upstream and would fail the run), PARLOIR_SMOKE_QUESTION="…".
  */
 import { generateText } from "ai";
-import { getCatalog, pickJudge } from "../../src/lib/providers/openrouter-catalog";
+import { getCatalog, tierPool } from "../../src/lib/providers/openrouter-catalog";
 import { resolveOpenRouterModel } from "../../src/lib/providers/registry";
 import { decideResearch } from "../../src/lib/research/gate";
 import { webResearch } from "../../src/lib/research/web";
@@ -32,7 +32,11 @@ async function main() {
   // Empty: the registry falls back to process.env under PARLOIR_DEV_INHERIT_ENV.
   const ctx: ProviderContext = { cloud: {}, local: {} };
   const catalog = await getCatalog();
-  const modelId = process.env.PARLOIR_SMOKE_MODEL ?? pickJudge(catalog, [])!;
+  const modelId = process.env.PARLOIR_SMOKE_MODEL ?? tierPool(catalog, "low").find((m) => m.structured)?.id;
+  if (!modelId) {
+    console.error("No Low cost model with structured output in the catalog; set PARLOIR_SMOKE_MODEL.");
+    process.exit(1);
+  }
   const model = catalog.find((m) => m.id === modelId);
   console.log(`model: ${modelId} (${model ? `$${model.promptPerM}/$${model.completionPerM} per M` : "not in catalog"})`);
   const today = new Date().toISOString().slice(0, 10);

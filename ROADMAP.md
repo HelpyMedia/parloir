@@ -39,7 +39,7 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 - [ ] MCP client integration — load user-configured MCP servers as tools
 - [ ] Document upload → embedding → per-session RAG
 - [x] Web research: gated research phase before the openings (evidence brief with numbered sources), a `web_search` tool in critique and adaptive rounds, deliverable cites only registered sources. Protocol basis: Lewis et al. 2020 (RAG), Nakano et al. 2021 (WebGPT), Asai et al. 2023 (Self-RAG), Yao et al. 2023 (ReAct)
-- [ ] Web research: confirm with `pnpm smoke:research` whether OpenRouter's reported cost includes the search fee, then drop the heuristic in `src/lib/research/web.ts`
+- [x] Web research: confirmed with `pnpm smoke:research` that OpenRouter's reported cost includes the search fee; `src/lib/research/web.ts` records it as is
 - [ ] Local model support in the UI (Ollama + LM Studio model picker)
 - [ ] vLLM endpoint configuration per-persona
 - [x] Tool-call UI: "Searched: <query>" chips inside turns with the pages found; research card with collapsible sources
