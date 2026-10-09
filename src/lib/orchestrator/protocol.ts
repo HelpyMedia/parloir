@@ -23,7 +23,7 @@
 import { pickJudgeModelChain, pickSynthesizerModelChain } from "../providers/defaults";
 import { evaluateConsensus } from "./consensus";
 import { synthesize } from "./synthesis";
-import { panelModelIds, runAgentTurn } from "./turn";
+import { loadEvidence, panelModelIds, runAgentTurn } from "./turn";
 import { runResearchPhase } from "./research";
 import { DebateAbortedError, describeModelError, type ModelErrorCode } from "./model-errors";
 import type { Durable } from "./durable";
@@ -38,6 +38,7 @@ import type {
   ProviderContext,
   Seats,
   SessionSource,
+  ResearchOutcome,
 } from "./types";
 import type { NewSource } from "../research/sources";
 import type { ControlPlane } from "./control";
@@ -120,6 +121,7 @@ export async function runDebate(
         turnIndex: idx,
         storage,
         sink,
+        research,
       });
     let openingOutcomes = await Promise.all(
       openingSpeakers.map((p, idx) => durable.step(`turn:opening:0:${p.personaId}`, openingTurn(p.personaId, idx))),
@@ -154,7 +156,7 @@ export async function runDebate(
     for (let round = 1; round <= session.protocol.maxCritiqueRounds && !consensusReached; round++) {
       session.currentRound = round;
       await enterPhase("critique", round);
-      await runRound(session, "critique", round, roster.active(), roster, deps);
+      await runRound(session, "critique", round, roster.active(), roster, deps, research);
       await exitPhase("critique", round);
       await phaseBoundary(session, `after-critique-${round}`, "critique", deps, roster);
 
@@ -176,7 +178,7 @@ export async function runDebate(
         session.currentRound = adaptiveRound;
         await enterPhase("adaptive_round", adaptiveRound);
         await phaseBoundary(session, "before-adaptive", "adaptive_round", deps, roster);
-        await runAdaptiveRound(session, adaptiveRound, report, roster, deps);
+        await runAdaptiveRound(session, adaptiveRound, report, roster, deps, research);
         await exitPhase("adaptive_round", adaptiveRound);
         break;
       }
@@ -219,6 +221,7 @@ async function runRound(
   speakers: Participant[],
   roster: Roster,
   deps: DebateDeps,
+  research: ResearchOutcome,
 ): Promise<void> {
   for (let i = 0; i < speakers.length; i++) {
     // Between-turn control point: honor a pause requested while the previous
@@ -241,6 +244,7 @@ async function runRound(
           roundNumber: round,
           storage: deps.storage,
           sink: deps.sink,
+          research,
         }),
       deps,
       roster,
@@ -260,6 +264,7 @@ async function runAdaptiveRound(
   report: ConsensusReport,
   roster: Roster,
   deps: DebateDeps,
+  research: ResearchOutcome,
 ): Promise<void> {
   await deps.durable.step(`adaptive:${round}:silence`, () =>
     deps.storage.setParticipantSilenced(session.id, report.silencedForNextRound, true),
@@ -270,7 +275,7 @@ async function runAdaptiveRound(
     .active(report.silencedForNextRound)
     .sort((a, b) => (rank.get(a.personaId) ?? 0) - (rank.get(b.personaId) ?? 0));
 
-  await runRound(session, "adaptive_round", round, speakers, roster, deps);
+  await runRound(session, "adaptive_round", round, speakers, roster, deps, research);
 }
 
 // ─── Consensus check (judge) ────────────────────────────────────────────────
@@ -291,9 +296,11 @@ async function runConsensusCheck(
       ctx,
       await panelModelIds(session, participants),
     );
+    const transcript = await storage.getTranscript(session.id);
     const report = await evaluateConsensus({
       question: session.question,
-      transcript: await storage.getTranscript(session.id),
+      transcript,
+      evidence: await loadEvidence(transcript, session.id, storage),
       participants,
       judgeModelChain,
       ctx,

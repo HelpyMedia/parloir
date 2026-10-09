@@ -17,7 +17,8 @@
 
 import { z } from "zod";
 import { tryGenerateObject } from "./try-generate-object";
-import type { Turn, Participant, ConsensusReport, ProviderContext } from "./types";
+import { evidenceBlock } from "../research/sources";
+import type { Turn, Participant, ConsensusReport, ProviderContext, SessionSource } from "./types";
 
 // Anthropic's structured-output validator rejects JSON Schema's minimum/maximum
 // on number fields, so we can't use z.number().min(0).max(1) here. Describe the
@@ -49,17 +50,20 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 export async function evaluateConsensus(params: {
   question: string;
   transcript: Turn[];
+  /** The research brief and registered sources, when research ran. */
+  evidence?: { brief: string; sources: SessionSource[] } | null;
   participants: Participant[];
   judgeModelChain: string[];
   ctx: ProviderContext;
 }): Promise<ConsensusReport> {
-  const { question, transcript, participants, judgeModelChain, ctx } = params;
+  const { question, transcript, evidence, participants, judgeModelChain, ctx } = params;
 
   const participantList = participants
     .map((p) => `- ${p.personaId} (seat ${p.seatIndex})`)
     .join("\n");
 
   const transcriptText = transcript
+    .filter((t) => t.phase !== "research")
     .map(
       (t) =>
         `[${t.phase} R${t.roundNumber}] ${t.speakerName} (${t.speakerId}):\n${t.content}`,
@@ -83,7 +87,9 @@ export async function evaluateConsensus(params: {
           "identifying REAL agreement (people reaching the same substantive conclusion for " +
           "compatible reasons) vs. SURFACE agreement (people saying similar words but meaning " +
           "different things). Rank participants by argument quality: specificity, evidence, " +
-          "responsiveness to others' points. The lowest-ranked participant will be silenced " +
+          "responsiveness to others' points. When an evidence brief is given, a claim backed by its " +
+          "[S#] sources outweighs an unsupported one, and a claim the brief contradicts is weak. " +
+          "The lowest-ranked participant will be silenced " +
           "in the next round, so be careful and defensible. Write every free-text field " +
           "(positions, questions, reasoning) in the same language as the DELIBERATION QUESTION.",
       },
@@ -91,6 +97,7 @@ export async function evaluateConsensus(params: {
         role: "user",
         content: [
           `DELIBERATION QUESTION:\n${question}`,
+          ...(evidence ? [evidenceBlock(evidence.brief, evidence.sources)] : []),
           `PARTICIPANTS:\n${participantList}`,
           `TRANSCRIPT:\n${transcriptText}`,
           "Produce the ConsensusReport now. Use persona IDs (not names) in all ID fields.",

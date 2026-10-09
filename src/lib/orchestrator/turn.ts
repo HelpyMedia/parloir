@@ -14,7 +14,17 @@ import { loadPersona } from "../personas";
 import { buildToolset } from "../tools";
 import { extractCostUsd } from "./pricing";
 import { describeModelError, type ModelErrorCode } from "./model-errors";
-import type { Participant, Persona, Phase, ProviderContext, Session, Turn } from "./types";
+import { evidenceBlock } from "../research/sources";
+import type {
+  Participant,
+  Persona,
+  Phase,
+  ProviderContext,
+  ResearchOutcome,
+  Session,
+  SessionSource,
+  Turn,
+} from "./types";
 import type { Storage, StreamSink } from "./protocol";
 
 /** Hard ceiling per turn. Keeps one step well under serverless limits. */
@@ -53,6 +63,8 @@ export async function runAgentTurn(params: {
   turnIndex?: number;
   storage: Storage;
   sink: StreamSink;
+  /** What the research phase produced; absent for sessions that predate it. */
+  research?: ResearchOutcome;
 }): Promise<TurnOutcome> {
   const { session, personaId, ctx, phase, roundNumber, storage, sink } = params;
 
@@ -60,8 +72,11 @@ export async function runAgentTurn(params: {
   const modelId = participantModelId(session, persona);
 
   // Opening is blind: speakers never see each other's opening statements.
+  // The evidence brief is not another speaker, so everyone reads it.
   const transcript = await storage.getTranscript(session.id);
-  const visibleHistory = phase === "opening" ? [] : transcript;
+  const debateTurns = transcript.filter((t) => t.phase !== "research");
+  const visibleHistory = phase === "opening" ? [] : debateTurns;
+  const evidence = await loadEvidence(transcript, session.id, storage);
   const turnIndex =
     params.turnIndex ??
     transcript.filter((t) => t.phase === phase && t.roundNumber === roundNumber).length;
@@ -77,7 +92,15 @@ export async function runAgentTurn(params: {
     const tools = await buildToolset(persona.toolIds, session.id);
     const result = streamText({
       model: resolveFor(ctx, modelId),
-      messages: buildMessages({ session, persona, phase, roundNumber, visibleHistory }),
+      messages: buildMessages({
+        session,
+        persona,
+        phase,
+        roundNumber,
+        visibleHistory,
+        evidence,
+        research: params.research,
+      }),
       temperature: persona.temperature,
       tools,
       // AI SDK 5 stops after one step by default; allow a couple of tool hops.
@@ -152,6 +175,30 @@ export async function runAgentTurn(params: {
   }
 }
 
+/** The research brief and every registered source, or null without research. */
+export async function loadEvidence(
+  transcript: Turn[],
+  sessionId: string,
+  storage: Storage,
+): Promise<{ brief: string; sources: SessionSource[] } | null> {
+  const brief = transcript.find((t) => t.phase === "research");
+  if (!brief) return null;
+  return { brief: brief.content, sources: await storage.getSources(sessionId) };
+}
+
+/** Research couldn't run, so the panel must say what it can't verify. */
+export function researchUnavailable(research: ResearchOutcome | undefined): boolean {
+  return research?.status === "skipped" && research.reason !== "not_needed";
+}
+
+const CITATION_RULE =
+  "Cite evidence as [S#], using only the IDs in the evidence brief's source list. Mark claims " +
+  "not backed by a source as your own knowledge. Never invent sources or URLs.";
+
+const NO_RESEARCH_RULE =
+  "No live web research was available for this session. Say plainly when a point depends on " +
+  "information you can't verify, such as recent products or prices.";
+
 const LANGUAGE_RULE =
   "Always write in the same language as the QUESTION (for example, answer in French if the question is in French).";
 
@@ -161,12 +208,21 @@ function buildMessages(params: {
   phase: Phase;
   roundNumber: number;
   visibleHistory: Turn[];
+  evidence: { brief: string; sources: SessionSource[] } | null;
+  research: ResearchOutcome | undefined;
 }) {
-  const { session, persona, phase, roundNumber, visibleHistory } = params;
+  const { session, persona, phase, roundNumber, visibleHistory, evidence, research } = params;
   const protocol = session.protocol;
   const requireNovelty = protocol.requireNovelty && phase !== "opening";
 
-  const systemParts = [persona.systemPrompt, LANGUAGE_RULE];
+  const systemParts = [
+    persona.systemPrompt,
+    LANGUAGE_RULE,
+    // Models otherwise assume their training cutoff is today.
+    `Today's date is ${new Date().toISOString().slice(0, 10)}.`,
+  ];
+  if (evidence) systemParts.push(CITATION_RULE);
+  else if (researchUnavailable(research)) systemParts.push(NO_RESEARCH_RULE);
 
   systemParts.push(
     "Keep each contribution focused: roughly 150 to 300 words, short paragraphs or a few bullets. " +
@@ -207,6 +263,7 @@ function buildMessages(params: {
 
   const userParts: string[] = [`QUESTION FOR DELIBERATION:\n${session.question}`];
   if (session.context) userParts.push(`BACKGROUND CONTEXT:\n${session.context}`);
+  if (evidence) userParts.push(evidenceBlock(evidence.brief, evidence.sources));
   if (visibleHistory.length > 0) {
     userParts.push(`TRANSCRIPT SO FAR:\n${formatTranscript(visibleHistory)}`);
   }
