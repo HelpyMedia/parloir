@@ -15,7 +15,7 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 - [x] `SessionView` React component (transcript + seats + phase indicators)
 - [x] `/new` page with a persona picker and question form
 - [x] Basic auth (Better Auth)
-- [ ] Wire `buildToolset` to actually call a web search provider (Brave or Tavily)
+- [x] Wire `buildToolset` to a real web search: OpenRouter's web plugin (Exa) on the user's key, see docs/web-research.md
 - [x] Load 5 default personas into DB on first run
 - [x] End-to-end smoke test: create session, start, watch full debate, see synthesis
 - [x] Durable per-turn steps; failed turns skip a panelist instead of killing the debate
@@ -38,10 +38,11 @@ Phased build plan. Each phase is self-contained and ships value — you can stop
 
 - [ ] MCP client integration — load user-configured MCP servers as tools
 - [ ] Document upload → embedding → per-session RAG
-- [ ] Web search tool (Brave or Tavily), surfaced per-persona
+- [x] Web research: gated research phase before the openings (evidence brief with numbered sources), a `web_search` tool in critique and adaptive rounds, deliverable cites only registered sources. Protocol basis: Lewis et al. 2020 (RAG), Nakano et al. 2021 (WebGPT), Asai et al. 2023 (Self-RAG), Yao et al. 2023 (ReAct)
+- [ ] Web research: confirm with `pnpm smoke:research` whether OpenRouter's reported cost includes the search fee, then drop the heuristic in `src/lib/research/web.ts`
 - [ ] Local model support in the UI (Ollama + LM Studio model picker)
 - [ ] vLLM endpoint configuration per-persona
-- [ ] Tool-call UI: expandable blocks inside turns showing search queries + results
+- [x] Tool-call UI: "Searched: <query>" chips inside turns with the pages found; research card with collapsible sources
 
 ## Phase 4 — Human-in-the-loop (1-2 weeks)
 
