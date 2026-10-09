@@ -326,9 +326,12 @@ async function runSynthesis(session: Session, participants: Participant[], deps:
       await panelModelIds(session, participants),
     );
     try {
+      const transcript = await storage.getTranscript(session.id);
       const artifact = await synthesize({
         session,
-        transcript: await storage.getTranscript(session.id),
+        transcript,
+        brief: transcript.find((t) => t.phase === "research")?.content ?? null,
+        sources: await storage.getSources(session.id),
         synthesizerModelChain,
         ctx,
         sink,
