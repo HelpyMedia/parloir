@@ -61,9 +61,10 @@ research spends nothing.
 Because the search fee applies to free models too, a panel of free models on an account with no
 credit can't research. The new-session form warns about this.
 
-Each search's cost is added to the turn that made it (the research turn, or the panelist's turn). Until
-the smoke test confirms whether OpenRouter's reported cost already includes the search fee, the code
-adds the fee only when the reported cost is below it.
+Each search's cost is added to the turn that made it (the research turn, or the panelist's turn).
+OpenRouter's reported cost already includes the search fee: a smoke test on 2026-10-09 with
+`openai/gpt-4o-mini` reported $0.0075 for $0.0005 of tokens. So the code records OpenRouter's figure as is,
+and adds the fee to its own token estimate only when OpenRouter reports no cost.
 
 ## Configuration
 
@@ -79,8 +80,9 @@ adds the fee only when the reported cost is below it.
   cofounder / hiring) make the gate skip research, and tool-capable models call `web_search` once in
   critique round 1.
 - `pnpm smoke:research` (with `PARLOIR_DEV_INHERIT_ENV=1` and a real `OPENROUTER_API_KEY`) runs the gate
-  and one real search. It prints the decision, the sources and the cost, and reports whether
-  OpenRouter's cost includes the search fee. It costs a few cents.
+  and one real search on a Low cost model (`PARLOIR_SMOKE_MODEL` picks another). It prints the decision,
+  the sources and the cost, and checks that OpenRouter's cost still includes the search fee. It costs a
+  few cents.
 
 ## Research basis
 

@@ -17,7 +17,7 @@
 
 import { generateText, type LanguageModel } from "ai";
 import { hasOpenRouterKey, resolveOpenRouterModel } from "../providers/registry";
-import { extractCostUsd } from "../orchestrator/pricing";
+import { estimateCostUsd, openRouterReportedCost } from "../orchestrator/pricing";
 import { describeModelError } from "../orchestrator/model-errors";
 import type { ProviderContext } from "../orchestrator/types";
 import { sourceKey } from "./sources";
@@ -102,12 +102,17 @@ export async function webResearch(params: {
     const sources = collectSources(result.sources);
     const tokensIn = result.usage.inputTokens ?? 0;
     const tokensOut = result.usage.outputTokens ?? 0;
-    const tokenCost = extractCostUsd(result.providerMetadata, modelId, tokensIn, tokensOut);
+    // OpenRouter's reported cost already includes the search fee (checked
+    // with scripts/dev/smoke-research.ts). Without a report, estimate the
+    // tokens and add the fee ourselves.
+    const costUsd =
+      openRouterReportedCost(result.providerMetadata) ??
+      estimateCostUsd(modelId, tokensIn, tokensOut) + WEB_SEARCH_FEE_USD;
     return {
       ok: true,
       summary: result.text.trim(),
       sources,
-      costUsd: withSearchFee(tokenCost),
+      costUsd,
       tokensIn,
       tokensOut,
     };
@@ -119,16 +124,6 @@ export async function webResearch(params: {
     }
     return { ok: false, code: "failed", message: info.message };
   }
-}
-
-/**
- * OpenRouter's reported cost is per generation. Until the smoke test
- * (scripts/dev/smoke-research.ts) settles whether it already includes the
- * search fee, a cost below the fee can't include it, so add it; a cost at or
- * above the fee is taken as the full charge.
- */
-function withSearchFee(reported: number): number {
-  return reported >= WEB_SEARCH_FEE_USD ? reported : reported + WEB_SEARCH_FEE_USD;
 }
 
 interface SdkSource {

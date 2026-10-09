@@ -63,12 +63,13 @@ export function extractCostUsd(
   tokensIn: number,
   tokensOut: number,
 ): number {
-  const authoritative = readOpenRouterCost(providerMetadata);
+  const authoritative = openRouterReportedCost(providerMetadata);
   if (authoritative !== null) return authoritative;
   return estimateCostUsd(modelId, tokensIn, tokensOut);
 }
 
-function readOpenRouterCost(providerMetadata: unknown): number | null {
+/** The USD cost OpenRouter reported for one generation, or null if it sent none. */
+export function openRouterReportedCost(providerMetadata: unknown): number | null {
   if (!providerMetadata || typeof providerMetadata !== "object") return null;
   const or = (providerMetadata as Record<string, unknown>).openrouter;
   if (!or || typeof or !== "object") return null;
