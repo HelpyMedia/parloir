@@ -1,0 +1,64 @@
+name: Clean up Neon preview branch
+
+# Vercel's Neon integration creates one database branch per git branch
+# (preview/<git-branch>) for preview deployments. Nothing deletes it when
+# the git branch goes away, so this does. Turn on "Automatically delete
+# head branches" in the repo settings so merging a PR triggers it.
+#
+# Needs two repository secrets:
+#   NEON_API_KEY     Neon → Account settings → API keys
+#   NEON_PROJECT_ID  Neon → project Settings → Project ID
+# Without them the job logs a notice and exits cleanly.
+
+on:
+  delete:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Git branch whose Neon preview branch to delete"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  delete-neon-branch:
+    if: github.event_name == 'workflow_dispatch' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+      GIT_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.ref }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Delete preview/<branch> in Neon
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_API_KEY}" ] || [ -z "${NEON_PROJECT_ID}" ]; then
+            echo "::notice::NEON_API_KEY or NEON_PROJECT_ID is not set; skipping Neon cleanup."
+            exit 0
+          fi
+          if [ -z "${GIT_BRANCH}" ] || [ "${GIT_BRANCH}" = "${DEFAULT_BRANCH}" ]; then
+            echo "Nothing to clean up for '${GIT_BRANCH}'."
+            exit 0
+          fi
+
+          api="https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches"
+          branches=$(curl -fsS -H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json" "${api}")
+
+          # Only the integration's preview branch, never the default or a protected one.
+          ids=$(jq -r --arg name "preview/${GIT_BRANCH}" \
+            '.branches[] | select(.name == $name and (.default | not) and (.protected | not)) | .id' \
+            <<<"${branches}")
+
+          if [ -z "${ids}" ]; then
+            echo "No Neon branch named preview/${GIT_BRANCH}; nothing to delete."
+            exit 0
+          fi
+
+          for id in ${ids}; do
+            echo "Deleting Neon branch preview/${GIT_BRANCH} (${id})"
+            curl -fsS -X DELETE -H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json" \
+              "${api}/${id}" > /dev/null
+          done
