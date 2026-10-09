@@ -29,10 +29,12 @@ import {
   primaryKey,
   vector,
 } from "drizzle-orm/pg-core";
+import type { SessionSource } from "../orchestrator/types";
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 export const phaseEnum = pgEnum("phase", [
   "setup",
+  "research",
   "opening",
   "critique",
   "consensus_check",
@@ -51,6 +53,7 @@ export const speakerRoleEnum = pgEnum("speaker_role", [
   "human",
   "judge",
   "secretary",
+  "researcher",
 ]);
 
 export const visibilityEnum = pgEnum("visibility", ["private", "team", "public"]);
@@ -255,6 +258,10 @@ export const sessions = pgTable(
       .$type<Record<string, string>>()
       .notNull()
       .default({}),
+    // Web pages found by the research phase and the panel's web_search tool,
+    // numbered S1, S2, … so every phase cites the same IDs. Appended through
+    // Storage.appendSources, which de-duplicates by URL.
+    sources: jsonb("sources").$type<SessionSource[]>().notNull().default([]),
   },
   (t) => ({
     createdByIdx: index("sessions_created_by_idx").on(t.createdBy),

@@ -166,6 +166,10 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
       return { ...state, personaState, live: { ...state.live, toolCalls } };
     }
 
+    case "research_complete":
+    case "research_skipped":
+      return state;
+
     case "consensus_report": {
       const personaState = { ...state.personaState };
       applySilencingFrom(event.report, personaState);

@@ -180,8 +180,8 @@ const HEADINGS = {
 } as const;
 
 const PHASE_LABELS: Record<"en" | "fr", Record<string, string>> = {
-  en: { opening: "opening", critique: "critique", adaptive_round: "final round", consensus_check: "consensus check", synthesis: "synthesis" },
-  fr: { opening: "ouverture", critique: "critique", adaptive_round: "ronde finale", consensus_check: "vérification du consensus", synthesis: "synthèse" },
+  en: { research: "web research", opening: "opening", critique: "critique", adaptive_round: "final round", consensus_check: "consensus check", synthesis: "synthesis" },
+  fr: { research: "recherche web", opening: "ouverture", critique: "critique", adaptive_round: "ronde finale", consensus_check: "vérification du consensus", synthesis: "synthèse" },
 };
 
 function headingsFor(session: Session) {
