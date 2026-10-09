@@ -14,7 +14,7 @@ import { loadPersona } from "../personas";
 import { buildToolset } from "../tools";
 import { extractCostUsd } from "./pricing";
 import { describeModelError, type ModelErrorCode } from "./model-errors";
-import type { Persona, Phase, ProviderContext, Session, Turn } from "./types";
+import type { Participant, Persona, Phase, ProviderContext, Session, Turn } from "./types";
 import type { Storage, StreamSink } from "./protocol";
 
 /** Hard ceiling per turn. Keeps one step well under serverless limits. */
@@ -28,6 +28,15 @@ export type TurnOutcome =
 
 export function participantModelId(session: Session, persona: Persona): string {
   return session.participantModelOverrides?.[persona.id] || persona.model;
+}
+
+/** Every seat's model, in participant order. */
+export async function panelModelIds(session: Session, participants: Participant[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const p of participants) {
+    out.push(participantModelId(session, await loadPersona(p.personaId)));
+  }
+  return out;
 }
 
 export function resolveFor(ctx: ProviderContext, modelId: string) {

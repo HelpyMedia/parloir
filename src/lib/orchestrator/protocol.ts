@@ -21,10 +21,10 @@
  */
 
 import { pickJudgeModelChain, pickSynthesizerModelChain } from "../providers/defaults";
-import { loadPersona } from "../personas";
 import { evaluateConsensus } from "./consensus";
 import { synthesize } from "./synthesis";
-import { participantModelId, runAgentTurn } from "./turn";
+import { panelModelIds, runAgentTurn } from "./turn";
+import { runResearchPhase } from "./research";
 import { DebateAbortedError, describeModelError, type ModelErrorCode } from "./model-errors";
 import type { Durable } from "./durable";
 import type {
@@ -102,6 +102,10 @@ export async function runDebate(
     });
 
   try {
+    // Phase 0: shared web research, when the question needs it. Never fails
+    // the debate: without it the panel argues from its own knowledge.
+    const research = await runResearchPhase(session, participants, deps);
+
     // Phase 1: parallel blind opening. Injections are drained AFTER it — agents start blind.
     session.currentRound = 0;
     await enterPhase("opening", 0);
@@ -271,14 +275,6 @@ async function runAdaptiveRound(
 
 // ─── Consensus check (judge) ────────────────────────────────────────────────
 
-async function panelModels(session: Session, participants: Participant[]): Promise<string[]> {
-  const out: string[] = [];
-  for (const p of participants) {
-    out.push(participantModelId(session, await loadPersona(p.personaId)));
-  }
-  return out;
-}
-
 async function runConsensusCheck(
   session: Session,
   participants: Participant[],
@@ -293,7 +289,7 @@ async function runConsensusCheck(
     const judgeModelChain = pickJudgeModelChain(
       session.protocol.judgeModel,
       ctx,
-      await panelModels(session, participants),
+      await panelModelIds(session, participants),
     );
     const report = await evaluateConsensus({
       question: session.question,
@@ -320,7 +316,7 @@ async function runSynthesis(session: Session, participants: Participant[], deps:
     const synthesizerModelChain = pickSynthesizerModelChain(
       session.protocol.synthesizerModel,
       ctx,
-      await panelModels(session, participants),
+      await panelModelIds(session, participants),
     );
     try {
       const artifact = await synthesize({

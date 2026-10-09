@@ -58,6 +58,12 @@ export function formatSourceList(sources: Pick<SessionSource, "id" | "title" | "
   return sources.map((s) => `[${s.id}] ${s.title || s.url} — ${s.url}`).join("\n");
 }
 
+/** The brief plus the source list, as panelists and the judge read it. */
+export function evidenceBlock(brief: string, sources: Pick<SessionSource, "id" | "title" | "url">[]): string {
+  const list = formatSourceList(sources);
+  return `EVIDENCE BRIEF (live web research):\n${brief}${list ? `\n\nSOURCES:\n${list}` : ""}`;
+}
+
 const CITATION = /\[(S\d+(?:\s*[,;]\s*S\d+)*)\]/g;
 
 /** IDs cited as [S1] or [S1, S2], in order of first appearance. */
