@@ -131,7 +131,8 @@
     "researchNoKey": "La recherche web nécessite une clé OpenRouter. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
     "researchNoKeyLink": "Connecter OpenRouter",
     "researchFailed": "La recherche web a échoué pour ce débat. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
-    "researchDisabled": "La recherche web est désactivée sur ce serveur. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents."
+    "researchDisabled": "La recherche web est désactivée sur ce serveur. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
+    "modelSwitched": "Le modèle gratuit de {name} ({from}) ne répondait plus : remplacé par {to}."
   },
   "NewSession": {
     "eyebrow": "Nouvelle séance",
@@ -151,7 +152,7 @@
     "personasLabel": "Panel (choisissez 2 à 5)",
     "tierLabel": "Modèles",
     "tierFree": "Gratuit",
-    "tierFreeBlurb": "Pour essayer",
+    "tierFreeBlurb": "Pour essayer, avec des ratés",
     "tierLow": "Économique",
     "tierLowBlurb": "Questions courantes",
     "tierMedium": "Intermédiaire",
@@ -160,9 +161,7 @@
     "tierHighBlurb": "Les décisions les plus difficiles",
     "tierEstimate": "≈ {cost} / débat",
     "panelEstimate": "Coût estimé avec ce panel : environ {cost} par débat, facturé par OpenRouter à votre compte.",
-    "noCreditNote": "Les niveaux payants exigent du crédit sur votre compte OpenRouter.",
     "noCreditLink": "Ajouter du crédit sur openrouter.ai",
-    "freeOnlyRestricted": "OpenRouter peut aussi restreindre certains modèles gratuits ou manquer de capacité. Si un modèle ne répond pas, ce panéliste est sauté et vous verrez quel modèle remplacer.",
     "advanced": "Juge et secrétaire",
     "advancedHint": "Le juge évalue le consensus entre les rondes; le secrétaire rédige la synthèse finale. Le mode auto les choisit dans le catalogue en direct.",
     "judge": "Juge",
@@ -189,7 +188,10 @@
     "localNoteTitle": "À noter : modèles locaux seulement",
     "localNoteBody": "Le juge et la synthèse finale ont besoin d'un modèle qui renvoie du JSON structuré de façon fiable. Les petits modèles locaux en sont souvent incapables. Utilisez un modèle local plus puissant ou connectez OpenRouter en renfort.",
     "researchCreditHint": "La recherche web nécessite du crédit OpenRouter (environ 0,01 à 0,10 $ par débat). Sans crédit, un panel de modèles gratuits répond uniquement à partir de ses données d'entraînement.",
-    "researchEstimate": "+ jusqu'à {cost} de recherche web, seulement si la question le demande."
+    "researchEstimate": "+ jusqu'à {cost} de recherche web, seulement si la question le demande.",
+    "freeTierCallout": "Les modèles gratuits partagent leur capacité avec tous les utilisateurs d'OpenRouter : ils sont souvent saturés ou limités. Si l'un d'eux ne répond plus, Parloir passe ce panéliste sur un autre modèle gratuit, mais un débat peut quand même bloquer.",
+    "freeTierUseLow": "Passer au niveau Économique : environ {cost} par débat",
+    "freeTierAddCredit": "Pour des débats fiables, ajoutez 5 $ de crédit OpenRouter. Un débat Économique coûte environ {cost}, et le crédit active aussi la recherche web."
   },
   "ModelPicker": {
     "choose": "Choisir un modèle",

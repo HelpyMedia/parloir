@@ -103,6 +103,23 @@ export const storage: Storage = {
     return Number(rows[0]?.n ?? 0);
   },
 
+  async setSeatModel(sessionId, personaId, modelId) {
+    // One statement, so a concurrent seat edit can't be lost to a stale read.
+    await db
+      .update(schema.sessions)
+      .set({
+        participantModelOverrides: sql`${schema.sessions.participantModelOverrides} || jsonb_build_object(${personaId}::text, ${modelId}::text)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, sessionId));
+  },
+
+  async loadCatalog() {
+    // Imported lazily: catalog.ts reaches health.ts, which imports this module.
+    const { getCatalogWithHealth } = await import("@/lib/models/catalog");
+    return getCatalogWithHealth();
+  },
+
   async appendTurn(turn: Turn) {
     await db.insert(schema.turns).values({
       id: turn.id,

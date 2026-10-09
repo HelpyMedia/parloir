@@ -131,7 +131,8 @@
     "researchNoKey": "Web research needs an OpenRouter key. This council answered from the models' training data only and may not know recent products or prices.",
     "researchNoKeyLink": "Connect OpenRouter",
     "researchFailed": "Web research failed for this debate. This council answered from the models' training data only and may not know recent products or prices.",
-    "researchDisabled": "Web research is turned off on this server. This council answered from the models' training data only and may not know recent products or prices."
+    "researchDisabled": "Web research is turned off on this server. This council answered from the models' training data only and may not know recent products or prices.",
+    "modelSwitched": "{name}'s free model ({from}) wasn't answering, so they switched to {to}."
   },
   "NewSession": {
     "eyebrow": "New session",
@@ -151,7 +152,7 @@
     "personasLabel": "Panel (pick 2–5)",
     "tierLabel": "Models",
     "tierFree": "Free",
-    "tierFreeBlurb": "To try it out",
+    "tierFreeBlurb": "To try it out, expect hiccups",
     "tierLow": "Low cost",
     "tierLowBlurb": "Everyday questions",
     "tierMedium": "Medium",
@@ -160,9 +161,7 @@
     "tierHighBlurb": "The hardest decisions",
     "tierEstimate": "≈ {cost} / debate",
     "panelEstimate": "Estimated cost with this panel: about {cost} per debate, billed by OpenRouter to your account.",
-    "noCreditNote": "Paid tiers need credit on your OpenRouter account.",
     "noCreditLink": "Add credit on openrouter.ai",
-    "freeOnlyRestricted": "OpenRouter can also restrict some free models or run out of capacity. If a model can't answer, that panelist is skipped and you'll see which model to swap.",
     "advanced": "Judge and secretary",
     "advancedHint": "The judge scores consensus between rounds; the secretary writes the final summary. Auto picks them from the live catalog.",
     "judge": "Judge",
@@ -189,7 +188,10 @@
     "localNoteTitle": "Heads up: local models only",
     "localNoteBody": "The judge and the final summary need a model that reliably returns structured JSON. Small local models often can't. Use a capable local model, or connect OpenRouter as a fallback.",
     "researchCreditHint": "Web research needs OpenRouter credits (about $0.01–0.10 per debate). Without credit, a panel of free models answers from training data only.",
-    "researchEstimate": "+ up to {cost} for web research, only when the question needs it."
+    "researchEstimate": "+ up to {cost} for web research, only when the question needs it.",
+    "freeTierCallout": "Free models share capacity with everyone on OpenRouter, so they're often busy or rate-limited. If one stops answering, Parloir switches that panelist to another free model, but a debate can still stall.",
+    "freeTierUseLow": "Use Low cost instead: about {cost} per debate",
+    "freeTierAddCredit": "For reliable debates, add $5 of OpenRouter credit. A Low cost debate costs about {cost}, and credit also turns on web research."
   },
   "ModelPicker": {
     "choose": "Choose a model",

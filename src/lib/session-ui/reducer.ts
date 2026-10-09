@@ -204,6 +204,30 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
     case "human_injection_request":
       return { ...state, humanInjectionPrompt: event.prompt, phase: "paused" };
 
+    case "model_switched": {
+      // The failure notice for this panelist is superseded: they're back, on another model.
+      const notice = {
+        seqKey: `${event.personaId}:switch:${event.toModel}`,
+        speakerId: event.personaId,
+        speakerName: event.personaName,
+        code: event.code,
+        message: "",
+        switched: { from: event.fromModel, to: event.toModel },
+      };
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          participantModelOverrides: {
+            ...(state.session.participantModelOverrides ?? {}),
+            [event.personaId]: event.toModel,
+          },
+        },
+        notices: [...state.notices.filter((n) => n.speakerId !== event.personaId || n.switched), notice].slice(-4),
+        failedSeats: state.failedSeats.filter((f) => f.personaId !== event.personaId),
+      };
+    }
+
     case "model_fix_request":
       return { ...state, modelFix: event.seats, humanInjectionPrompt: null, phase: "paused" };
 

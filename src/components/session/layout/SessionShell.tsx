@@ -188,13 +188,23 @@ export function SessionShell({ bundle, providers = [] }: { bundle: HydrationBund
           aria-live="polite"
           className="border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-6 py-2 text-xs text-[var(--color-text-muted)]"
         >
-          {state.notices.map((n) => (
-            <li key={n.seqKey}>
-              {t("turnSkipped", { name: n.speakerName })}{" "}
-              {/* Errors.unknown describes a stopped debate; one skipped turn is not that. */}
-              {n.code === "unknown" ? tErr("turnFailed") : tErr.has(n.code) ? tErr(n.code) : n.message}
-            </li>
-          ))}
+          {state.notices.map((n) =>
+            n.switched ? (
+              <li key={n.seqKey}>
+                {t("modelSwitched", {
+                  name: n.speakerName,
+                  from: n.switched.from.replace(/^openrouter\//, ""),
+                  to: n.switched.to.replace(/^openrouter\//, ""),
+                })}
+              </li>
+            ) : (
+              <li key={n.seqKey}>
+                {t("turnSkipped", { name: n.speakerName })}{" "}
+                {/* Errors.unknown describes a stopped debate; one skipped turn is not that. */}
+                {n.code === "unknown" ? tErr("turnFailed") : tErr.has(n.code) ? tErr(n.code) : n.message}
+              </li>
+            ),
+          )}
         </ul>
       )}
 

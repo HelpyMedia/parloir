@@ -10,7 +10,7 @@
 // "overloaded" return 503; "slowpoke" hangs 200s (exercise timeouts);
 // ":batch" variants (Batch API only) return 404 like OpenRouter does;
 // "onlyonce" answers its first call and returns 429 after that (a model that
-// fails mid-debate).
+// fails mid-debate; the ":free" one exercises the automatic free-model swap).
 // GET /api/v1/key reports a free-tier account when the key contains
 // "freetier", otherwise a paid one with $25 left.
 //
@@ -36,6 +36,7 @@ const models = [
   ["kappa/value-chat", "Kappa: Value Chat", "0.0000002", "0.0000008", 42, ["response_format", "tools"]],
   ["mu/mid-pro:batch", "Mu: Mid Pro (batch)", "0.00000075", "0.000004", 58, ["structured_outputs"]],
   ["xi/onlyonce", "Xi: Only Once", "0.0000002", "0.0000008", 30, []],
+  ["omicron/onlyonce:free", "Omicron: Only Once (free)", "0", "0", 35, []],
   ["lambda/budget", "Lambda: Budget", "0.0000005", "0.000002", 38, ["structured_outputs", "tools"]],
   ["mu/mid-pro", "Mu: Mid Pro", "0.0000015", "0.000008", 58, ["structured_outputs", "tools"]],
   ["nu/frontier-max", "Nu: Frontier Max", "0.00001", "0.00004", 70, ["structured_outputs", "tools"]],

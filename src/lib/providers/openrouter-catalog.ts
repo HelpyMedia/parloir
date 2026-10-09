@@ -213,9 +213,17 @@ function tierOrder(tier: ModelTier): (a: CatalogModel, b: CatalogModel) => numbe
     Number(a.reliability === "flaky") - Number(b.reliability === "flaky") || byQuality(a, b);
 }
 
+/** Fewest free models a pool keeps before letting flaky ones back in: the largest panel. */
+const MIN_FREE_POOL = 5;
+
 /** Models a tier draws from, best first. */
 export function tierPool(catalog: CatalogModel[], tier: ModelTier): CatalogModel[] {
-  return catalog.filter((m) => debateCapable(m) && !m.restricted && inTier(m, tier)).sort(tierOrder(tier));
+  const pool = catalog.filter((m) => debateCapable(m) && !m.restricted && inTier(m, tier)).sort(tierOrder(tier));
+  if (tier !== "free") return pool;
+  // Free models share capacity with everyone on OpenRouter. One Parloir has
+  // seen fail repeatedly stays out of default panels while enough others remain.
+  const steady = pool.filter((m) => m.reliability !== "flaky");
+  return steady.length >= MIN_FREE_POOL ? steady : pool;
 }
 
 /**
@@ -279,6 +287,7 @@ export function pickSecretary(catalog: CatalogModel[], panel: string[]): string 
     .sort(
       (a, b) =>
         Number(Boolean(a.restricted)) - Number(Boolean(b.restricted)) ||
+        Number(a.reliability === "flaky") - Number(b.reliability === "flaky") ||
         Number(b.structured) - Number(a.structured) ||
         byQuality(a, b),
     );

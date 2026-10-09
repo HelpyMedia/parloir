@@ -66,19 +66,6 @@ export function TierSelector({
           );
         })}
       </div>
-      {paidDisabled && (
-        <p className="text-xs text-[var(--color-text-muted)]">
-          {t("noCreditNote")}{" "}
-          <a
-            href="https://openrouter.ai/settings/credits"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--color-spot-warm)] underline underline-offset-2"
-          >
-            {t("noCreditLink")}
-          </a>
-        </p>
-      )}
     </div>
   );
 }

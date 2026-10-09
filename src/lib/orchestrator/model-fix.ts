@@ -11,6 +11,7 @@ import { loadPersona } from "../personas";
 import { isAccountWideError } from "./model-errors";
 import { applySeats, drainOnce, waitWhilePaused } from "./pause";
 import { participantModelId, type TurnOutcome } from "./turn";
+import { MAX_FREE_SWAPS, swapFailedFreeSeats, swappable } from "./free-swap";
 import type { DebateDeps } from "./protocol";
 import type { Roster } from "./roster";
 import type { ModelFixSeat, Phase, Session } from "./types";
@@ -70,8 +71,9 @@ export async function pauseForModelFix(
 }
 
 /**
- * Run one turn; on a fixable failure, pause for a fix and redo it in the same
- * slot with whatever model the seat has now.
+ * Run one turn. A failing free seat first gets another free model on its own
+ * (free-swap.ts); any failure still left pauses for a fix, and the turn is
+ * redone in the same slot with whatever model the seat has then.
  */
 export async function turnWithFix(params: {
   session: Session;
@@ -84,6 +86,12 @@ export async function turnWithFix(params: {
 }): Promise<TurnOutcome> {
   const { session, personaId, stepId, atPhase, run, deps, roster } = params;
   let outcome = await deps.durable.step(stepId, run);
+  const tried = new Map<string, Set<string>>();
+  for (let swap = 1; swap <= MAX_FREE_SWAPS && swappable(outcome); swap++) {
+    const swaps = await swapFailedFreeSeats(session, [outcome], `${stepId}:${swap}`, deps, tried);
+    if (swaps.length === 0) break;
+    outcome = await deps.durable.step(`${stepId}:swap:${swap}`, run);
+  }
   for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS && canFix(outcome); attempt++) {
     await pauseForModelFix(session, [outcome], `${stepId}:${attempt}`, atPhase, deps, roster);
     if (roster.isDropped(personaId)) break;
