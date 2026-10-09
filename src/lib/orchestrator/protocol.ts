@@ -37,7 +37,9 @@ import type {
   SynthesisArtifact,
   ProviderContext,
   Seats,
+  SessionSource,
 } from "./types";
+import type { NewSource } from "../research/sources";
 import type { ControlPlane } from "./control";
 import { assertCanContinue, Roster } from "./roster";
 import { phaseBoundary } from "./pause";
@@ -60,6 +62,15 @@ export interface Storage {
   loadSeats(sessionId: string): Promise<Seats>;
   /** Best-effort record of how a model did on one turn (null code = answered). Never throws. */
   recordModelOutcome(modelId: string, code: ModelErrorCode | null): Promise<void>;
+  /**
+   * Register web pages in the session's source registry and return the entry
+   * for each one. URLs already registered keep their ID, so a replayed or
+   * retried step gets the same IDs back.
+   */
+  appendSources(sessionId: string, sources: NewSource[]): Promise<SessionSource[]>;
+  getSources(sessionId: string): Promise<SessionSource[]>;
+  /** web_search tool calls panelists made in persisted turns, for the per-session cap. */
+  countToolSearches(sessionId: string): Promise<number>;
 }
 
 export interface DebateDeps {
