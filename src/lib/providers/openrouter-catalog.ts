@@ -39,6 +39,8 @@ export interface CatalogModel {
   isFree: boolean;
   /** Supports JSON-schema structured output (judge/secretary friendly). */
   structured: boolean;
+  /** Supports function calling, so it can use the web_search tool. */
+  tools: boolean;
   /** Artificial Analysis intelligence index when OpenRouter reports one. */
   intelligence: number | null;
   /** Unix seconds. */
@@ -101,6 +103,7 @@ export function normalizeCatalog(raw: RawModel[], now = Date.now()): CatalogMode
       completionPerM,
       isFree: (promptPerM === 0 && completionPerM === 0) || m.id.endsWith(":free"),
       structured: params.includes("structured_outputs") || params.includes("response_format"),
+      tools: params.includes("tools"),
       intelligence: typeof intelligence === "number" ? intelligence : null,
       created: m.created ?? 0,
     });
@@ -140,6 +143,21 @@ export async function getCatalog(): Promise<CatalogModel[]> {
       inflight = null;
     });
   return inflight;
+}
+
+/**
+ * Whether a model can call tools, per OpenRouter's catalog. Local and
+ * unknown models count as no tools: a model that can't parse a tool schema
+ * fails the whole turn.
+ */
+export async function modelSupportsTools(modelId: string): Promise<boolean> {
+  if (/^(ollama|lmstudio|vllm)\//.test(modelId)) return false;
+  const slug = modelId.startsWith("openrouter/") ? modelId.slice("openrouter/".length) : modelId;
+  try {
+    return (await getCatalog()).find((m) => m.slug === slug)?.tools ?? false;
+  } catch {
+    return false;
+  }
 }
 
 /** Test hook. */

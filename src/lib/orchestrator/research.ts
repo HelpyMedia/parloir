@@ -17,7 +17,7 @@
  */
 
 import { pickJudgeModelChain } from "../providers/defaults";
-import { hasOpenRouterKey, openRouterSlug } from "../providers/registry";
+import { firstOpenRouterModel, hasOpenRouterKey } from "../providers/registry";
 import { decideResearch } from "../research/gate";
 import { writeBrief, type BriefSearch } from "../research/brief";
 import { webResearch, webResearchEnabled, type WebResearchResult } from "../research/web";
@@ -47,11 +47,6 @@ export function researchSpeakerName(session: Session): string {
 /** YYYY-MM-DD in UTC. */
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-/** The first model in a chain that OpenRouter can run with the web plugin. */
-export function webCapableModel(chain: string[]): string | null {
-  return chain.find((id) => openRouterSlug(id) !== null) ?? null;
 }
 
 export async function runResearchPhase(
@@ -84,7 +79,7 @@ export async function runResearchPhase(
       ctx,
       today: today(),
     });
-    return { ...decision, hasKey: hasOpenRouterKey(ctx), searchModel: webCapableModel(chain) };
+    return { ...decision, hasKey: hasOpenRouterKey(ctx), searchModel: firstOpenRouterModel(chain) };
   });
 
   if (!gate.needsWeb) return skip("not_needed", true);

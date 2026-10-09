@@ -12,6 +12,7 @@ import { streamText, stepCountIs } from "ai";
 import { resolveModel } from "../providers/registry";
 import { loadPersona } from "../personas";
 import { buildToolset } from "../tools";
+import { WEB_SEARCH_TOOL } from "../tools/web-search";
 import { extractCostUsd } from "./pricing";
 import { describeModelError, type ModelErrorCode } from "./model-errors";
 import { evidenceBlock } from "../research/sources";
@@ -88,8 +89,22 @@ export async function runAgentTurn(params: {
     phase,
   });
 
+  // Known before the model runs, so tool events can point at the turn.
+  const turnId = crypto.randomUUID();
+
   try {
-    const tools = await buildToolset(persona.toolIds, session.id);
+    const { tools, recorder } = await buildToolset(persona.toolIds, {
+      session,
+      ctx,
+      phase,
+      roundNumber,
+      personaId: persona.id,
+      modelId,
+      turnId,
+      storage,
+      sink,
+      research: params.research,
+    });
     const result = streamText({
       model: resolveFor(ctx, modelId),
       messages: buildMessages({
@@ -100,6 +115,7 @@ export async function runAgentTurn(params: {
         visibleHistory,
         evidence,
         research: params.research,
+        canSearch: WEB_SEARCH_TOOL in tools,
       }),
       temperature: persona.temperature,
       tools,
@@ -131,13 +147,21 @@ export async function runAgentTurn(params: {
     if (streamError) throw streamError;
     if (fullText.trim().length === 0) throw new Error("no output generated (empty)");
 
-    const usage = await result.usage;
-    const tokensIn = usage.inputTokens ?? 0;
-    const tokensOut = usage.outputTokens ?? 0;
-    const costUsd = extractCostUsd(await result.providerMetadata, modelId, tokensIn, tokensOut);
+    // A tool call splits the turn into several model calls, each billed.
+    const steps = await result.steps;
+    let tokensIn = 0;
+    let tokensOut = 0;
+    let costUsd = recorder.costUsd;
+    for (const step of steps) {
+      const stepIn = step.usage.inputTokens ?? 0;
+      const stepOut = step.usage.outputTokens ?? 0;
+      tokensIn += stepIn;
+      tokensOut += stepOut;
+      costUsd += extractCostUsd(step.providerMetadata, modelId, stepIn, stepOut);
+    }
 
     const turn: Turn = {
-      id: crypto.randomUUID(),
+      id: turnId,
       sessionId: session.id,
       phase,
       roundNumber,
@@ -146,6 +170,7 @@ export async function runAgentTurn(params: {
       speakerId: persona.id,
       speakerName: persona.name,
       content: fullText,
+      toolCalls: recorder.calls,
       references: extractReferences(fullText, visibleHistory),
       tokensIn,
       tokensOut,
@@ -210,8 +235,9 @@ function buildMessages(params: {
   visibleHistory: Turn[];
   evidence: { brief: string; sources: SessionSource[] } | null;
   research: ResearchOutcome | undefined;
+  canSearch: boolean;
 }) {
-  const { session, persona, phase, roundNumber, visibleHistory, evidence, research } = params;
+  const { session, persona, phase, roundNumber, visibleHistory, evidence, research, canSearch } = params;
   const protocol = session.protocol;
   const requireNovelty = protocol.requireNovelty && phase !== "opening";
 
@@ -223,6 +249,13 @@ function buildMessages(params: {
   ];
   if (evidence) systemParts.push(CITATION_RULE);
   else if (researchUnavailable(research)) systemParts.push(NO_RESEARCH_RULE);
+  if (canSearch) {
+    systemParts.push(
+      "You may call web_search once this turn to check one specific fact the debate hinges on. " +
+        "Don't search for what the evidence brief already covers. Cite its results as [S#]; " +
+        "never invent sources or URLs.",
+    );
+  }
 
   systemParts.push(
     "Keep each contribution focused: roughly 150 to 300 words, short paragraphs or a few bullets. " +

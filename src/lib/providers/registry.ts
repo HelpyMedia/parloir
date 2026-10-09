@@ -174,6 +174,11 @@ export function openRouterSlug(modelId: string): string | null {
   return modelId.includes("/") ? modelId : null;
 }
 
+/** The first model in a chain that OpenRouter can run (and so give the web plugin). */
+export function firstOpenRouterModel(chain: string[]): string | null {
+  return chain.find((id) => openRouterSlug(id) !== null) ?? null;
+}
+
 export function hasOpenRouterKey(ctx: ProviderContext): boolean {
   return Boolean(effectiveContext(ctx).cloud.openrouter);
 }
