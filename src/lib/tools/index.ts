@@ -40,13 +40,18 @@ export interface ToolsetContext extends WebSearchContext {
   research?: ResearchOutcome;
 }
 
-/** Research skipped for these reasons means a search would fail the same way. */
-const SEARCH_CANNOT_RUN = new Set(["disabled", "no_credits", "no_openrouter_key"]);
+/**
+ * No tool when research was skipped because a search would fail the same
+ * way (off, no credits, no key), or because the gate judged the question
+ * needs no outside facts: that call holds for the whole debate, so a
+ * question about the person's own situation never pays for a search.
+ */
+const NO_SEARCH_AFTER_SKIP = new Set(["disabled", "no_credits", "no_openrouter_key", "not_needed"]);
 
 async function webSearchAvailable(c: ToolsetContext): Promise<boolean> {
   if (c.phase !== "critique" && c.phase !== "adaptive_round") return false;
   if (!webResearchEnabled() || !hasOpenRouterKey(c.ctx)) return false;
-  if (c.research?.status === "skipped" && SEARCH_CANNOT_RUN.has(c.research.reason)) return false;
+  if (c.research?.status === "skipped" && NO_SEARCH_AFTER_SKIP.has(c.research.reason)) return false;
   return modelSupportsTools(c.modelId);
 }
 
