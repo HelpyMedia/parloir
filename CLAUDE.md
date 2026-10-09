@@ -32,6 +32,7 @@ Two terminals are needed during dev: one for `pnpm inngest:dev`, one for `pnpm d
 The core product is the **debate orchestrator**, a finite state machine over phases in `src/lib/orchestrator/`. The rest of the codebase exists to feed it inputs and pipe its outputs somewhere.
 
 **Phase flow** (`protocol.ts` → `runDebate`):
+0. `research` (gated, `research.ts`) — a judge-model gate decides whether the question needs the web; if so, up to 3 searches through OpenRouter's web plugin and an evidence brief citing the session's source registry (`sessions.sources`, IDs `S1…`). Every phase reads the brief. Never fails the debate: anything that stops it emits `research_skipped`. See docs/web-research.md.
 1. `opening` — all agents answer in parallel, blind to each other (diversity preservation — this is load-bearing, do not make it sequential).
 2. `critique` — sequential round-robin; each agent sees full prior transcript. Each turn must refine, critique-by-name, or concede (novelty requirement — prevents sycophancy).
 3. `consensus_check` — cheap judge model (`consensus.ts`) emits a structured `ConsensusReport` with rankings and silencing recommendations.
@@ -68,6 +69,7 @@ Protocol rules are research-grounded (see `CONTRIBUTING.md` citations). Do not a
 - New persona → `personas/templates/<slug>.json`.
 - New provider → `src/lib/providers/registry.ts` (extend `resolveModel`).
 - New tool → `src/lib/tools/index.ts` (register in the `TOOLS` map consumed by `buildToolset`).
+- Web research limits and fee → `src/lib/research/limits.ts`; env `PARLOIR_WEB_RESEARCH=0` turns it off, `PARLOIR_WEB_ENGINE` picks the engine.
 - Protocol change → `src/lib/orchestrator/protocol.ts`, with a ROADMAP note and citation.
 - UI → `src/components/`. Keep it terminal-feeling, not dashboard-feeling.
 
@@ -88,7 +90,7 @@ Live as of 2026-04-17. Parloir is multi-tenant: every user signs in and brings t
 
 ## Known gaps to be aware of
 
-- `buildToolset` doesn't call a real web search provider, so no template persona enables tools.
+- Web search runs only through OpenRouter (user's key); local-only setups get no research. `web_search` is attached automatically in critique/adaptive rounds for tool-capable models, not via persona `toolIds`.
 - Persona DB loading is a TODO — templates directory is the source of truth.
 - Output is capped per call (`maxOutputTokens`) but there is no per-session cost budget.
 - Cost comes from OpenRouter's usage accounting; direct-provider keys fall back to a small static price table, and judge/secretary calls aren't counted yet.

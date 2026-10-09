@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import type { Phase } from "@/lib/orchestrator/types";
 
 const ORDER: Array<{ key: Phase; label: string }> = [
+  { key: "research", label: "phaseResearch" },
   { key: "opening", label: "phaseOpening" },
   { key: "critique", label: "phaseCritique" },
   { key: "consensus_check", label: "phaseConsensus" },

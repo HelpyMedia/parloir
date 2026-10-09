@@ -18,7 +18,8 @@
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:deploy": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
     "inngest:dev": "npx inngest-cli@latest dev",
-    "dev:mock-openrouter": "node scripts/dev/mock-openrouter.mjs"
+    "dev:mock-openrouter": "node scripts/dev/mock-openrouter.mjs",
+    "smoke:research": "tsx --env-file-if-exists=.env.local scripts/dev/smoke-research.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",

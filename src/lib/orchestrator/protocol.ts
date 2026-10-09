@@ -21,10 +21,10 @@
  */
 
 import { pickJudgeModelChain, pickSynthesizerModelChain } from "../providers/defaults";
-import { loadPersona } from "../personas";
 import { evaluateConsensus } from "./consensus";
 import { synthesize } from "./synthesis";
-import { participantModelId, runAgentTurn } from "./turn";
+import { loadEvidence, panelModelIds, runAgentTurn } from "./turn";
+import { runResearchPhase } from "./research";
 import { DebateAbortedError, describeModelError, type ModelErrorCode } from "./model-errors";
 import type { Durable } from "./durable";
 import type {
@@ -37,7 +37,10 @@ import type {
   SynthesisArtifact,
   ProviderContext,
   Seats,
+  SessionSource,
+  ResearchOutcome,
 } from "./types";
+import type { NewSource } from "../research/sources";
 import type { ControlPlane } from "./control";
 import { assertCanContinue, Roster } from "./roster";
 import { phaseBoundary } from "./pause";
@@ -60,6 +63,15 @@ export interface Storage {
   loadSeats(sessionId: string): Promise<Seats>;
   /** Best-effort record of how a model did on one turn (null code = answered). Never throws. */
   recordModelOutcome(modelId: string, code: ModelErrorCode | null): Promise<void>;
+  /**
+   * Register web pages in the session's source registry and return the entry
+   * for each one. URLs already registered keep their ID, so a replayed or
+   * retried step gets the same IDs back.
+   */
+  appendSources(sessionId: string, sources: NewSource[]): Promise<SessionSource[]>;
+  getSources(sessionId: string): Promise<SessionSource[]>;
+  /** web_search tool calls panelists made in persisted turns, for the per-session cap. */
+  countToolSearches(sessionId: string): Promise<number>;
 }
 
 export interface DebateDeps {
@@ -91,6 +103,10 @@ export async function runDebate(
     });
 
   try {
+    // Phase 0: shared web research, when the question needs it. Never fails
+    // the debate: without it the panel argues from its own knowledge.
+    const research = await runResearchPhase(session, participants, deps);
+
     // Phase 1: parallel blind opening. Injections are drained AFTER it — agents start blind.
     session.currentRound = 0;
     await enterPhase("opening", 0);
@@ -105,6 +121,7 @@ export async function runDebate(
         turnIndex: idx,
         storage,
         sink,
+        research,
       });
     let openingOutcomes = await Promise.all(
       openingSpeakers.map((p, idx) => durable.step(`turn:opening:0:${p.personaId}`, openingTurn(p.personaId, idx))),
@@ -139,7 +156,7 @@ export async function runDebate(
     for (let round = 1; round <= session.protocol.maxCritiqueRounds && !consensusReached; round++) {
       session.currentRound = round;
       await enterPhase("critique", round);
-      await runRound(session, "critique", round, roster.active(), roster, deps);
+      await runRound(session, "critique", round, roster.active(), roster, deps, research);
       await exitPhase("critique", round);
       await phaseBoundary(session, `after-critique-${round}`, "critique", deps, roster);
 
@@ -161,7 +178,7 @@ export async function runDebate(
         session.currentRound = adaptiveRound;
         await enterPhase("adaptive_round", adaptiveRound);
         await phaseBoundary(session, "before-adaptive", "adaptive_round", deps, roster);
-        await runAdaptiveRound(session, adaptiveRound, report, roster, deps);
+        await runAdaptiveRound(session, adaptiveRound, report, roster, deps, research);
         await exitPhase("adaptive_round", adaptiveRound);
         break;
       }
@@ -204,6 +221,7 @@ async function runRound(
   speakers: Participant[],
   roster: Roster,
   deps: DebateDeps,
+  research: ResearchOutcome,
 ): Promise<void> {
   for (let i = 0; i < speakers.length; i++) {
     // Between-turn control point: honor a pause requested while the previous
@@ -226,6 +244,7 @@ async function runRound(
           roundNumber: round,
           storage: deps.storage,
           sink: deps.sink,
+          research,
         }),
       deps,
       roster,
@@ -245,6 +264,7 @@ async function runAdaptiveRound(
   report: ConsensusReport,
   roster: Roster,
   deps: DebateDeps,
+  research: ResearchOutcome,
 ): Promise<void> {
   await deps.durable.step(`adaptive:${round}:silence`, () =>
     deps.storage.setParticipantSilenced(session.id, report.silencedForNextRound, true),
@@ -255,18 +275,10 @@ async function runAdaptiveRound(
     .active(report.silencedForNextRound)
     .sort((a, b) => (rank.get(a.personaId) ?? 0) - (rank.get(b.personaId) ?? 0));
 
-  await runRound(session, "adaptive_round", round, speakers, roster, deps);
+  await runRound(session, "adaptive_round", round, speakers, roster, deps, research);
 }
 
 // ─── Consensus check (judge) ────────────────────────────────────────────────
-
-async function panelModels(session: Session, participants: Participant[]): Promise<string[]> {
-  const out: string[] = [];
-  for (const p of participants) {
-    out.push(participantModelId(session, await loadPersona(p.personaId)));
-  }
-  return out;
-}
 
 async function runConsensusCheck(
   session: Session,
@@ -282,11 +294,13 @@ async function runConsensusCheck(
     const judgeModelChain = pickJudgeModelChain(
       session.protocol.judgeModel,
       ctx,
-      await panelModels(session, participants),
+      await panelModelIds(session, participants),
     );
+    const transcript = await storage.getTranscript(session.id);
     const report = await evaluateConsensus({
       question: session.question,
-      transcript: await storage.getTranscript(session.id),
+      transcript,
+      evidence: await loadEvidence(transcript, session.id, storage),
       participants,
       judgeModelChain,
       ctx,
@@ -309,12 +323,15 @@ async function runSynthesis(session: Session, participants: Participant[], deps:
     const synthesizerModelChain = pickSynthesizerModelChain(
       session.protocol.synthesizerModel,
       ctx,
-      await panelModels(session, participants),
+      await panelModelIds(session, participants),
     );
     try {
+      const transcript = await storage.getTranscript(session.id);
       const artifact = await synthesize({
         session,
-        transcript: await storage.getTranscript(session.id),
+        transcript,
+        brief: transcript.find((t) => t.phase === "research")?.content ?? null,
+        sources: await storage.getSources(session.id),
         synthesizerModelChain,
         ctx,
         sink,

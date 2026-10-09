@@ -123,7 +123,15 @@
     "failedDialogBody": "Ces panélistes ont été sautés parce que leur modèle a échoué. Remplacez leurs modèles et relancez le débat : votre question et le reste du panel sont conservés.",
     "failedDialogSwap": "Remplacer ces modèles et réessayer",
     "failedDialogClose": "Fermer",
-    "failedDialogRestrictedNote": "Les modèles refusés par OpenRouter sont désormais exclus des panels par défaut."
+    "failedDialogRestrictedNote": "Les modèles refusés par OpenRouter sont désormais exclus des panels par défaut.",
+    "phaseResearch": "Recherche",
+    "researchNotNeeded": "Aucune recherche web nécessaire pour cette question.",
+    "researchNoCredits": "La recherche web nécessite du crédit OpenRouter (environ 0,01 à 0,10 $ par débat). Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
+    "researchNoCreditsLink": "Ajouter du crédit sur OpenRouter",
+    "researchNoKey": "La recherche web nécessite une clé OpenRouter. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
+    "researchNoKeyLink": "Connecter OpenRouter",
+    "researchFailed": "La recherche web a échoué pour ce débat. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents.",
+    "researchDisabled": "La recherche web est désactivée sur ce serveur. Ce conseil a répondu uniquement à partir des données d'entraînement des modèles et peut ignorer des produits ou des prix récents."
   },
   "NewSession": {
     "eyebrow": "Nouvelle séance",
@@ -179,7 +187,9 @@
     "connectBodySelfHost": "Parloir lance les débats sur les modèles que vous fournissez : une clé API (OpenRouter, Anthropic, OpenAI, Google) ou un serveur local (Ollama, LM Studio).",
     "openSettings": "Ouvrir les paramètres →",
     "localNoteTitle": "À noter : modèles locaux seulement",
-    "localNoteBody": "Le juge et la synthèse finale ont besoin d'un modèle qui renvoie du JSON structuré de façon fiable. Les petits modèles locaux en sont souvent incapables. Utilisez un modèle local plus puissant ou connectez OpenRouter en renfort."
+    "localNoteBody": "Le juge et la synthèse finale ont besoin d'un modèle qui renvoie du JSON structuré de façon fiable. Les petits modèles locaux en sont souvent incapables. Utilisez un modèle local plus puissant ou connectez OpenRouter en renfort.",
+    "researchCreditHint": "La recherche web nécessite du crédit OpenRouter (environ 0,01 à 0,10 $ par débat). Sans crédit, un panel de modèles gratuits répond uniquement à partir de ses données d'entraînement.",
+    "researchEstimate": "+ jusqu'à {cost} de recherche web, seulement si la question le demande."
   },
   "ModelPicker": {
     "choose": "Choisir un modèle",
@@ -320,7 +330,17 @@
     "resume": "Reprendre",
     "seatMinPanel": "Un débat exige au moins deux panélistes.",
     "seatNotPaused": "Le débat n'est plus en pause.",
-    "seatSaveFailed": "Ce changement n'a pas pu être enregistré. Réessayez."
+    "seatSaveFailed": "Ce changement n'a pas pu être enregistré. Réessayez.",
+    "phase_research": "Recherche",
+    "divider_research": "Recherche web",
+    "researchBrief": "Dossier de preuves",
+    "researchQueries": "Recherches : {queries}",
+    "researchSources": "Sources ({count})",
+    "researchRunning": "Recherche sur le web avant que le panel prenne la parole…",
+    "searched": "Recherche : {query}",
+    "searching": "Recherche en cours : {query}…",
+    "searchUnavailable": "Recherche indisponible : {query}",
+    "sourcesTitle": "Sources"
   },
   "Personas": {
     "creative_synthesizer": "Synthétiseuse créative",

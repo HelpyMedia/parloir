@@ -15,7 +15,7 @@ import { StartButton } from "./StartButton";
 import { TierSelector } from "./TierSelector";
 import { useOpenRouterCredit } from "./useOpenRouterCredit";
 import { MODEL_TIERS, tierOf, type ModelTier } from "@/lib/models/tiers";
-import { estimateDebateCostUsd, formatEstimate } from "@/lib/models/cost-estimate";
+import { estimateDebateCostUsd, estimateResearchCeilingUsd, formatEstimate } from "@/lib/models/cost-estimate";
 import { SuggestPanelButton, type SuggestStatus } from "./SuggestPanelButton";
 
 export interface NewSessionInitial {
@@ -167,10 +167,13 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
     }
     return out;
   }, [catalog.loading, catalog.defaults, panelSize, priced, rounds]);
-  const panelCost = estimateDebateCostUsd(
-    priced(selectedIds.map((id) => seatModels[id]).filter(Boolean)),
-    rounds,
-  );
+  const seated = selectedIds.map((id) => seatModels[id]).filter(Boolean);
+  const panelCost = estimateDebateCostUsd(priced(seated), rounds);
+  const researchCeiling = estimateResearchCeilingUsd(priced(seated));
+  // Web search is charged per search even on free models, so a free panel on
+  // an account without credit debates from training data only.
+  const allFree = seated.length > 0 && seated.every((id) => modelById.get(id)?.isFree ?? false);
+  const researchNeedsCredit = hasOpenRouter && allFree && credit !== "credit" && credit !== "loading";
 
 
   // --- Suggest-a-panel state ----------------------------------------------
@@ -422,6 +425,25 @@ export function NewSessionForm({ personas, connectedProviders, hasCloudProvider,
               <p className="text-xs text-[var(--color-text-muted)]">
                 {t("panelEstimate", { cost: formatEstimate(panelCost) })}
               </p>
+            )}
+            {researchNeedsCredit ? (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {t("researchCreditHint")}{" "}
+                <a
+                  href="https://openrouter.ai/settings/credits"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-[var(--color-text-primary)]"
+                >
+                  {t("noCreditLink")}
+                </a>
+              </p>
+            ) : (
+              researchCeiling > 0 && (
+                <p className="text-xs text-[var(--color-text-dim)]">
+                  {t("researchEstimate", { cost: formatEstimate(researchCeiling) })}
+                </p>
+              )
             )}
           </div>
         )}

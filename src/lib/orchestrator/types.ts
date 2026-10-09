@@ -10,6 +10,7 @@
 /** A phase in the debate protocol. Transitions are deterministic. */
 export type Phase =
   | "setup" // Session configured, not yet running
+  | "research" // Phase 0: shared web research before the openings (gated)
   | "opening" // Phase 1: independent parallel statements (blind)
   | "critique" // Phase 2+: sequential critique with full visibility
   | "consensus_check" // Phase 3: judge evaluates convergence
@@ -23,7 +24,7 @@ export type Phase =
   | "aborted"; // Hosted: workflow aborted by an authorized actor
 
 /** Who produced a turn. */
-export type SpeakerRole = "agent" | "human" | "judge" | "secretary";
+export type SpeakerRole = "agent" | "human" | "judge" | "secretary" | "researcher";
 
 /** A single message in the transcript. */
 export interface Turn {
@@ -55,6 +56,29 @@ export interface ToolCall {
   result: unknown;
   durationMs: number;
 }
+
+/**
+ * A web page the council found, numbered once per session so every phase
+ * cites it as the same [S#]. Stored in `sessions.sources`.
+ */
+export interface SessionSource {
+  /** "S1", "S2", … in registration order. */
+  id: string;
+  url: string;
+  title: string;
+  /** Page excerpt returned with the search result, capped at ~1,200 chars. */
+  excerpt: string;
+  /** "research" for the shared research phase, else the persona that searched. */
+  foundBy: string;
+  phase: Phase;
+  round: number;
+}
+
+/** Why the research phase did not produce a brief. */
+export type ResearchSkipReason = "not_needed" | "no_credits" | "no_openrouter_key" | "failed" | "disabled";
+
+/** What the research phase produced; drives the panel's prompts. */
+export type ResearchOutcome = { status: "complete" } | { status: "skipped"; reason: ResearchSkipReason };
 
 /** A queued human note waiting to be appended at the next phase boundary. */
 export interface HumanInjection {
@@ -221,6 +245,8 @@ export interface SynthesisArtifact {
   minorityViews: Array<{ view: string; holders: string[] }>;
   unresolvedConcerns: string[];
   recommendedActions: string[];
+  /** Registered sources the synthesis actually cites. Absent before web research existed. */
+  sources?: Array<{ id: string; url: string; title: string }>;
   /** Full transcript markdown for export. */
   transcriptMarkdown: string;
   createdAt: Date;
@@ -250,6 +276,8 @@ export type StreamEvent =
     }
   | { type: "tool_call"; turnId: string; toolName: string; args: unknown }
   | { type: "tool_result"; turnId: string; toolName: string; result: unknown }
+  | { type: "research_complete"; turnId: string; sources: SessionSource[] }
+  | { type: "research_skipped"; reason: ResearchSkipReason }
   | { type: "consensus_report"; report: ConsensusReport }
   | { type: "synthesis_complete"; artifact: SynthesisArtifact }
   | { type: "human_injection_request"; prompt: string }

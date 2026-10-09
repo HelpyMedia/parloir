@@ -23,8 +23,9 @@ import { attemptSignal, tryGenerateObject } from "./try-generate-object";
 
 /** Whole synthesis (structured chain + prose fallback) must fit in one step. */
 const SYNTHESIS_BUDGET_MS = 250_000;
-import type { Session, Turn, SynthesisArtifact, ProviderContext } from "./types";
+import type { Session, Turn, SynthesisArtifact, ProviderContext, SessionSource } from "./types";
 import type { StreamSink } from "./protocol";
+import { citedIds, evidenceBlock, formatSourceList, sanitizeCitations } from "../research/sources";
 
 const SynthesisSchema = z.object({
   decision: z.string().describe("The recommended decision or answer in 2-4 sentences."),
@@ -46,17 +47,24 @@ const SynthesisSchema = z.object({
   recommendedActions: z.array(z.string()),
 });
 
+type SynthesisFields = z.infer<typeof SynthesisSchema>;
+
 export async function synthesize(params: {
   session: Session;
   transcript: Turn[];
+  /** The research brief, when the research phase ran. */
+  brief: string | null;
+  /** The session's source registry: the only pages the deliverable may cite. */
+  sources: SessionSource[];
   synthesizerModelChain: string[];
   ctx: ProviderContext;
   sink: StreamSink;
 }): Promise<SynthesisArtifact> {
-  const { session, transcript, synthesizerModelChain, ctx } = params;
+  const { session, transcript, brief, sources, synthesizerModelChain, ctx } = params;
   const deadline = Date.now() + SYNTHESIS_BUDGET_MS;
 
   const transcriptText = transcript
+    .filter((t) => t.phase !== "research")
     .map(
       (t) => `[${t.phase} R${t.roundNumber}] ${t.speakerName}:\n${t.content}`,
     )
@@ -72,13 +80,22 @@ export async function synthesize(params: {
         "paper over real disagreement. Confidence levels: HIGH = strong cross-agent consensus " +
         "with specific evidence; MEDIUM = rough consensus with some open questions; LOW = " +
         "genuine unresolved disagreement, decision is a judgment call. Write every text field " +
-        "in the same language as the ORIGINAL QUESTION. Refer to panelists by their names.",
+        "in the same language as the ORIGINAL QUESTION. Refer to panelists by their names." +
+        (sources.length > 0
+          ? " Where a statement rests on web evidence, cite it with the [S#] IDs from the SOURCES " +
+            "list, exactly as the panel did. Cite only those IDs, never write URLs, never invent sources."
+          : " Do not write URLs or cite sources."),
     },
     {
       role: "user",
       content: [
         `ORIGINAL QUESTION:\n${session.question}`,
         session.context ? `CONTEXT:\n${session.context}` : "",
+        brief
+          ? evidenceBlock(brief, sources)
+          : sources.length > 0
+            ? `SOURCES (found by the panel's web searches):\n${formatSourceList(sources)}`
+            : "",
         `FULL TRANSCRIPT:\n${transcriptText}`,
         "Produce the synthesis artifact now.",
       ]
@@ -100,14 +117,13 @@ export async function synthesize(params: {
   });
 
   if (structured) {
+    const fields = sanitizeFields(structured.object, sources);
+    const cited = citedSources(allText(fields), sources);
     return {
       sessionId: session.id,
-      ...structured.object,
-      transcriptMarkdown: renderTranscriptMarkdown(
-        session,
-        transcript,
-        structured.object,
-      ),
+      ...fields,
+      sources: cited,
+      transcriptMarkdown: renderTranscriptMarkdown(session, transcript, fields, cited),
       createdAt: new Date(),
     };
   }
@@ -127,17 +143,21 @@ export async function synthesize(params: {
         providerOptions: { openrouter: { usage: { include: true } } },
       });
       if (!text.trim()) continue;
+      const clean = sanitizeCitations(text, sources);
+      const cited = citedSources(clean, sources);
       return {
         sessionId: session.id,
-        decision: text.slice(0, 500),
+        decision: clean.slice(0, 500),
         confidence: "low",
         keyArguments: [],
         tradeoffs: [],
         minorityViews: [],
         unresolvedConcerns: [],
         recommendedActions: [],
-        transcriptMarkdown:
-          text + "\n\n---\n\n" + renderTranscriptOnly(session, transcript),
+        sources: cited,
+        transcriptMarkdown: [clean, renderSources(session, cited), "---", renderTranscriptOnly(session, transcript)]
+          .filter(Boolean)
+          .join("\n\n"),
         createdAt: new Date(),
       };
     } catch (e) {
@@ -150,6 +170,53 @@ export async function synthesize(params: {
   );
 }
 
+/**
+ * Models invent citations. Every text field keeps only [S#] IDs the
+ * registry holds and URLs that are registered pages.
+ */
+function sanitizeFields(f: SynthesisFields, sources: SessionSource[]): SynthesisFields {
+  const clean = (text: string) => sanitizeCitations(text, sources);
+  return {
+    ...f,
+    decision: clean(f.decision),
+    keyArguments: f.keyArguments.map((a) => ({ ...a, position: clean(a.position) })),
+    tradeoffs: f.tradeoffs.map(clean),
+    minorityViews: f.minorityViews.map((v) => ({ ...v, view: clean(v.view) })),
+    unresolvedConcerns: f.unresolvedConcerns.map(clean),
+    recommendedActions: f.recommendedActions.map(clean),
+  };
+}
+
+function allText(f: SynthesisFields): string {
+  return [
+    f.decision,
+    ...f.keyArguments.map((a) => a.position),
+    ...f.tradeoffs,
+    ...f.minorityViews.map((v) => v.view),
+    ...f.unresolvedConcerns,
+    ...f.recommendedActions,
+  ].join("\n");
+}
+
+/** Registered sources the text cites, in registry order. */
+function citedSources(text: string, sources: SessionSource[]): Array<{ id: string; url: string; title: string }> {
+  const cited = new Set(citedIds(text));
+  return sources.filter((s) => cited.has(s.id)).map(({ id, url, title }) => ({ id, url, title }));
+}
+
+/** Built from the registry, never from model output. */
+function renderSources(session: Session, cited: Array<{ id: string; url: string; title: string }>): string {
+  if (cited.length === 0) return "";
+  const h = headingsFor(session);
+  return [`## ${h.sources}`, ...cited.map((s) => `- [${s.id}] [${escapeLinkText(s.title || s.url)}](<${s.url}>)`)].join(
+    "\n",
+  );
+}
+
+function escapeLinkText(text: string): string {
+  return text.replace(/([[\]])/g, "\\$1");
+}
+
 const HEADINGS = {
   en: {
     question: "Question",
@@ -160,6 +227,7 @@ const HEADINGS = {
     minority: "Minority views",
     unresolved: "Unresolved concerns",
     actions: "Recommended actions",
+    sources: "Sources",
     transcript: "Full transcript",
     round: "round",
     levels: { high: "high", medium: "medium", low: "low" },
@@ -173,6 +241,7 @@ const HEADINGS = {
     minority: "Points de vue minoritaires",
     unresolved: "Préoccupations non résolues",
     actions: "Actions recommandées",
+    sources: "Sources",
     transcript: "Transcription complète",
     round: "ronde",
     levels: { high: "élevé", medium: "moyen", low: "faible" },
@@ -180,8 +249,8 @@ const HEADINGS = {
 } as const;
 
 const PHASE_LABELS: Record<"en" | "fr", Record<string, string>> = {
-  en: { opening: "opening", critique: "critique", adaptive_round: "final round", consensus_check: "consensus check", synthesis: "synthesis" },
-  fr: { opening: "ouverture", critique: "critique", adaptive_round: "ronde finale", consensus_check: "vérification du consensus", synthesis: "synthèse" },
+  en: { research: "web research", opening: "opening", critique: "critique", adaptive_round: "final round", consensus_check: "consensus check", synthesis: "synthesis" },
+  fr: { research: "recherche web", opening: "ouverture", critique: "critique", adaptive_round: "ronde finale", consensus_check: "vérification du consensus", synthesis: "synthèse" },
 };
 
 function headingsFor(session: Session) {
@@ -196,7 +265,8 @@ function colon(session: Session) {
 function renderTranscriptMarkdown(
   session: Session,
   transcript: Turn[],
-  synthesis: z.infer<typeof SynthesisSchema>,
+  synthesis: SynthesisFields,
+  cited: Array<{ id: string; url: string; title: string }>,
 ): string {
   const h = headingsFor(session);
   const lines: string[] = [];
@@ -232,6 +302,11 @@ function renderTranscriptMarkdown(
   lines.push(`## ${h.actions}`);
   for (const a of synthesis.recommendedActions) lines.push(`- ${a}`);
   lines.push("");
+  const sourcesSection = renderSources(session, cited);
+  if (sourcesSection) {
+    lines.push(sourcesSection);
+    lines.push("");
+  }
   lines.push("---");
   lines.push(renderTranscriptOnly(session, transcript));
   return lines.join("\n");
@@ -245,7 +320,11 @@ function renderTranscriptOnly(session: Session, transcript: Turn[]): string {
   lines.push("");
   for (const turn of transcript) {
     const phase = phases[turn.phase] ?? turn.phase;
-    lines.push(`### ${turn.speakerName} — ${phase} (${h.round} ${turn.roundNumber})`);
+    lines.push(
+      turn.phase === "research"
+        ? `### ${turn.speakerName} — ${phase}`
+        : `### ${turn.speakerName} — ${phase} (${h.round} ${turn.roundNumber})`,
+    );
     lines.push("");
     lines.push(turn.content);
     lines.push("");

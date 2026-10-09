@@ -3,6 +3,7 @@ import type { Phase } from "@/lib/orchestrator/types";
 
 const ACCENT: Record<Phase, string> = {
   setup: "var(--color-text-muted)",
+  research: "var(--color-evidence)",
   opening: "var(--color-persona-strategist)",
   critique: "var(--color-persona-skeptic)",
   consensus_check: "var(--color-evidence)",

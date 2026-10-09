@@ -21,7 +21,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenRouter, type OpenRouterChatSettings } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { LanguageModel } from "ai";
 import type { ProviderContext } from "../orchestrator/types";
@@ -160,6 +160,47 @@ export function resolveModel(modelId: string, ctx: ProviderContext): LanguageMod
   throw new Error(
     `Cannot resolve model "${modelId}". Connect a provider at /settings.`,
   );
+}
+
+/**
+ * The OpenRouter slug a model ID would be served under, or null for models
+ * only a local server can run. Native prefixes (`anthropic/…`) share their
+ * slug with OpenRouter, which is how resolveModel falls back to it.
+ */
+export function openRouterSlug(modelId: string): string | null {
+  if (modelId.startsWith("openrouter/")) return modelId.slice("openrouter/".length) || null;
+  if (/^(ollama|lmstudio|vllm)\//.test(modelId)) return null;
+  if (modelId.startsWith("google-gemini/")) return "google/" + modelId.slice("google-gemini/".length);
+  return modelId.includes("/") ? modelId : null;
+}
+
+/** The first model in a chain that OpenRouter can run (and so give the web plugin). */
+export function firstOpenRouterModel(chain: string[]): string | null {
+  return chain.find((id) => openRouterSlug(id) !== null) ?? null;
+}
+
+export function hasOpenRouterKey(ctx: ProviderContext): boolean {
+  return Boolean(effectiveContext(ctx).cloud.openrouter);
+}
+
+/**
+ * Resolve a model through OpenRouter whatever other keys the user has, with
+ * OpenRouter-only settings such as the web plugin. A direct Anthropic or
+ * OpenAI key can't run OpenRouter plugins, so this never takes that route.
+ */
+export function resolveOpenRouterModel(
+  modelId: string,
+  ctx: ProviderContext,
+  settings: OpenRouterChatSettings,
+): LanguageModel {
+  if (isHosted() && !isAllowedModelId(modelId)) {
+    throw new Error(`Model "${modelId}" is not available on this server.`);
+  }
+  const slug = openRouterSlug(modelId);
+  if (!slug) throw new Error(`Model "${modelId}" is not served by OpenRouter`);
+  const or = openrouterFor(effectiveContext(ctx));
+  if (!or) throw new Error("OpenRouter API key not configured for this user");
+  return or(slug, settings);
 }
 
 /** Returns the list of provider families available in a context. */

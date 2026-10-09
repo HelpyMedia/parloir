@@ -64,6 +64,13 @@
       "when": 1791499814856,
       "tag": "0008_participant_removed",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791560345375,
+      "tag": "0009_web_research",
+      "breakpoints": true
     }
   ]
 }

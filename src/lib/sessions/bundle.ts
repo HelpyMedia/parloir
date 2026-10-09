@@ -4,7 +4,7 @@
  * render) and GET /api/sessions/[id].
  */
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
 import { loadPersona } from "@/lib/personas";
@@ -12,6 +12,7 @@ import { getOwnedSession } from "@/lib/sessions/authz";
 import type {
   ConsensusReport,
   Persona,
+  ResearchOutcome,
   Session,
   StreamEvent,
   SynthesisArtifact,
@@ -44,7 +45,7 @@ export async function loadHydrationBundle(
   if (owned.status !== "ok") return null;
   const sessionRow = owned.session;
 
-  const [participantRows, turnRows, consensusRows, artifactRows, lastEvents] = await Promise.all([
+  const [participantRows, turnRows, consensusRows, artifactRows, lastEvents, researchEvents] = await Promise.all([
     db
       .select()
       .from(schema.participants)
@@ -70,6 +71,18 @@ export async function loadHydrationBundle(
       .select({ seq: schema.sessionEvents.seq, payload: schema.sessionEvents.payload })
       .from(schema.sessionEvents)
       .where(eq(schema.sessionEvents.sessionId, id))
+      .orderBy(desc(schema.sessionEvents.seq))
+      .limit(1),
+    // How the research phase ended, so a reload can show its notice again.
+    db
+      .select({ payload: schema.sessionEvents.payload })
+      .from(schema.sessionEvents)
+      .where(
+        and(
+          eq(schema.sessionEvents.sessionId, id),
+          sql`${schema.sessionEvents.payload}->>'type' IN ('research_complete', 'research_skipped')`,
+        ),
+      )
       .orderBy(desc(schema.sessionEvents.seq))
       .limit(1),
   ]);
@@ -135,6 +148,14 @@ export async function loadHydrationBundle(
   const modelFix =
     sessionRow.status === "paused" && lastPayload?.type === "model_fix_request" ? lastPayload.seats : null;
 
+  const researchEvent = researchEvents[0]?.payload as StreamEvent | undefined;
+  const research: ResearchOutcome | null =
+    researchEvent?.type === "research_skipped"
+      ? { status: "skipped", reason: researchEvent.reason }
+      : researchEvent?.type === "research_complete"
+        ? { status: "complete" }
+        : null;
+
   const session: Session = {
     id: sessionRow.id,
     title: sessionRow.title,
@@ -170,5 +191,7 @@ export async function loadHydrationBundle(
     failedSeats,
     modelFix,
     removedPersonaIds: participantRows.filter((r) => r.removed).map((r) => r.personaId),
+    sources: sessionRow.sources ?? [],
+    research,
   };
 }

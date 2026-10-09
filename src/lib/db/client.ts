@@ -8,7 +8,7 @@
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as schema from "./schema";
 import type {
   Turn,
@@ -18,8 +18,10 @@ import type {
   Phase,
   ConsensusReport,
   Seats,
+  SessionSource,
 } from "@/lib/orchestrator/types";
 import type { Storage } from "@/lib/orchestrator/protocol";
+import { mergeSources } from "@/lib/research/sources";
 import "@/lib/config/assert-prod";
 
 const connectionString = process.env.DATABASE_URL;
@@ -63,6 +65,42 @@ export const storage: Storage = {
     // Imported lazily: health.ts imports this module for `db`.
     const { recordModelOutcome } = await import("@/lib/models/health");
     await recordModelOutcome(modelId, code);
+  },
+
+  async appendSources(sessionId, incoming) {
+    if (incoming.length === 0) return [];
+    // Row lock: research searches run in parallel and must not hand out the
+    // same S# twice.
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ sources: schema.sessions.sources })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.id, sessionId))
+        .for("update");
+      const merged = mergeSources(row?.sources ?? [], incoming);
+      if (merged.added > 0) {
+        await tx.update(schema.sessions).set({ sources: merged.all }).where(eq(schema.sessions.id, sessionId));
+      }
+      return merged.resolved;
+    });
+  },
+
+  async getSources(sessionId): Promise<SessionSource[]> {
+    const row = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, sessionId),
+      columns: { sources: true },
+    });
+    return row?.sources ?? [];
+  },
+
+  async countToolSearches(sessionId) {
+    const rows = await db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n
+      FROM ${schema.turns} t, jsonb_array_elements(t.tool_calls) call
+      WHERE t.session_id = ${sessionId}
+        AND t.speaker_role = 'agent'
+        AND call->>'toolName' = 'web_search'`);
+    return Number(rows[0]?.n ?? 0);
   },
 
   async appendTurn(turn: Turn) {

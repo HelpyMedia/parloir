@@ -29,6 +29,7 @@ local model servers are switched off, and per-user debate caps apply. See
 
 "Multi-agent" tools today are mostly four chat windows stapled together. Parloir implements a real **debate protocol** grounded in the multi-agent debate (MAD) research literature:
 
+0. **Web research, when the question needs it.** A gate decides whether the question involves things models can't know from training (named products, prices, recent events). If it does, the council searches the live web and writes a shared evidence brief with numbered sources, and the final deliverable cites only those sources. See [docs/web-research.md](./docs/web-research.md).
 1. **Independent opening statements** — agents answer blind to each other, preserving diversity
 2. **Structured critique rounds** — sequential with full visibility; every turn must bring something new
 3. **Consensus check** — a lightweight judge model evaluates convergence
@@ -52,7 +53,8 @@ The protocol is designed around key findings from MAD research: diversity matter
 - **Orchestration:** custom TypeScript state machine — no framework lock-in
 - **Durable execution:** Inngest (bypasses Vercel's 300s function timeout)
 - **Database:** Postgres + Drizzle ORM + pgvector
-- **Planned:** web search, RAG over uploaded docs, MCP tools, Langfuse tracing
+- **Web research:** OpenRouter's web plugin (Exa) on the user's own key, gated per question, with cited sources
+- **Planned:** RAG over uploaded docs, MCP tools, Langfuse tracing
 
 ## Quickstart
 
@@ -95,11 +97,13 @@ src/
 │   ├── orchestrator/         The debate state machine — the heart
 │   │   ├── protocol.ts       Phase transitions, turn selection
 │   │   ├── consensus.ts      Judge logic, convergence detection
+│   │   ├── research.ts       Phase 0: gated web research + evidence brief
 │   │   ├── synthesis.ts      Secretary agent
 │   │   └── types.ts          Shared types
 │   ├── providers/            Provider abstraction
 │   ├── personas/             Persona templates + loader
-│   ├── tools/                Web search, MCP, RAG
+│   ├── research/             Web search via OpenRouter, gate, brief, source registry
+│   ├── tools/                web_search tool for critique rounds, MCP, RAG
 │   ├── db/                   Drizzle schema + queries
 │   └── inngest/              Background workflow definitions
 └── personas/templates/       Default persona JSON library
@@ -150,6 +154,7 @@ The debate protocol draws on:
 
 - Du et al., *Improving Factuality and Reasoning in Language Models with Multiagent Debate* (2023)
 - Liang et al., *Encouraging Divergent Thinking in LLMs through Multi-Agent Debate* (2023)
+- Lewis et al., *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks* (2020); Asai et al., *Self-RAG* (2023); Yao et al., *ReAct* (2023) — gated web research and the critique-round search tool
 - Wu et al., *Rethinking Multi-Agent Debate* (2025)
 - *The impact of multi-agent debate protocols on debate quality* (2026) — RA-CR protocol
 
