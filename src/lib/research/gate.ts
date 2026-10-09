@@ -13,8 +13,8 @@
 import { z } from "zod";
 import { tryGenerateObject } from "../orchestrator/try-generate-object";
 import type { ProviderContext } from "../orchestrator/types";
+import { MAX_RESEARCH_QUERIES } from "./limits";
 
-export const MAX_RESEARCH_QUERIES = 3;
 const MAX_QUERY_CHARS = 300;
 
 const GateSchema = z.object({

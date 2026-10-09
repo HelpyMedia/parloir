@@ -21,12 +21,8 @@ import { extractCostUsd } from "../orchestrator/pricing";
 import { describeModelError } from "../orchestrator/model-errors";
 import type { ProviderContext } from "../orchestrator/types";
 import { sourceKey } from "./sources";
+import { WEB_SEARCH_FEE_USD } from "./limits";
 
-/**
- * Exa's fee per search (up to 10 results), charged by OpenRouter even when
- * the model is free and on top of token costs.
- */
-export const WEB_SEARCH_FEE_USD = 0.007;
 const EXCERPT_CHARS = 1_200;
 const DEFAULT_TIMEOUT_MS = 60_000;
 

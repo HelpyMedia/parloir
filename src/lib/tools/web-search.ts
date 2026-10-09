@@ -17,12 +17,11 @@ import { z } from "zod";
 import { pickJudgeModelChain } from "../providers/defaults";
 import { firstOpenRouterModel } from "../providers/registry";
 import { webResearch } from "../research/web";
+import { SEARCHES_PER_TURN, TOOL_SEARCHES_PER_SESSION } from "../research/limits";
 import type { Storage, StreamSink } from "../orchestrator/protocol";
 import type { Phase, ProviderContext, Session, ToolCall } from "../orchestrator/types";
 
 export const WEB_SEARCH_TOOL = "web_search";
-export const SEARCHES_PER_TURN = 1;
-export const TOOL_SEARCHES_PER_SESSION = 8;
 const SEARCH_TIMEOUT_MS = 45_000;
 
 export interface WebSearchContext {
