@@ -1,13 +1,32 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
+import { useMemo } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { linkCitations } from "@/lib/research/sources";
+import type { SessionSource } from "@/lib/orchestrator/types";
 
 interface Props {
   content: string;
+  /** The session's sources; [S#] citations become links to them. */
+  sources?: Pick<SessionSource, "id" | "title" | "url">[];
 }
 
-export function TurnMarkdown({ content }: Props) {
+// Links in turns point at the open web: never replace the debate's tab, and
+// never hand the destination a window.opener or a referrer.
+const components: Components = {
+  a: ({ node: _node, href, children, ...rest }) => {
+    const external = typeof href === "string" && /^https?:\/\//i.test(href);
+    return (
+      <a href={href} {...rest} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+        {children}
+      </a>
+    );
+  },
+};
+
+export function TurnMarkdown({ content, sources }: Props) {
+  const linked = useMemo(() => (sources?.length ? linkCitations(content, sources) : content), [content, sources]);
   return (
     <div
       className="prose-turn text-sm leading-relaxed text-[var(--color-text-primary)] [max-width:72ch]
@@ -33,7 +52,9 @@ export function TurnMarkdown({ content }: Props) {
           sanitizer blocks `javascript:` URLs and unknown elements — turn ids
           are not model-controlled but `content` is, and a prompt-injection
           could place hostile HTML if raw passthrough is added. */}
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {linked}
+      </ReactMarkdown>
     </div>
   );
 }

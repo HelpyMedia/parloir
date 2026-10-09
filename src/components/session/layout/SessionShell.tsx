@@ -18,6 +18,7 @@ import { StickyActionBar } from "./StickyActionBar";
 import { TopBar } from "./TopBar";
 import { FailedModelsDialog } from "./FailedModelsDialog";
 import { ModelFixPanel } from "../paused/ModelFixPanel";
+import { ResearchUnavailableNotice } from "../transcript/ResearchNotice";
 import type { RailEditing } from "../rails/PersonaRail";
 import { useModelCatalog } from "@/components/models/useModelCatalog";
 
@@ -179,6 +180,9 @@ export function SessionShell({ bundle, providers = [] }: { bundle: HydrationBund
           {errorText}
         </div>
       )}
+      {state.research?.status === "skipped" && state.research.reason !== "not_needed" && (
+        <ResearchUnavailableNotice reason={state.research.reason} />
+      )}
       {state.notices.length > 0 && state.phase !== "completed" && (
         <ul
           aria-live="polite"
@@ -248,6 +252,9 @@ export function SessionShell({ bundle, providers = [] }: { bundle: HydrationBund
             consensusReports={state.consensusReports}
             personas={state.personas}
             paused={isPaused}
+            sources={state.sources}
+            research={state.research}
+            researching={state.phase === "research"}
           />
         </>
       )}

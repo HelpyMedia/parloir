@@ -5,7 +5,11 @@ import type {
   Session,
   SynthesisArtifact,
   ToolCall,
-  Turn, ModelFixSeat } from "@/lib/orchestrator/types";
+  Turn,
+  ModelFixSeat,
+  ResearchOutcome,
+  SessionSource,
+} from "@/lib/orchestrator/types";
 
 export type PersonaStatus =
   | "listening"
@@ -59,6 +63,10 @@ export interface UISession {
   removedIds: string[];
   lastSeq: number;
   totalCostUsd: number;
+  /** Web pages the council found, numbered as the turns cite them. */
+  sources: SessionSource[];
+  /** How the research phase ended; null while it hasn't, or for older sessions. */
+  research: ResearchOutcome | null;
 }
 
 /** A panelist whose model failed and hasn't answered since. */
@@ -94,4 +102,6 @@ export interface HydrationBundle {
   /** Pending model fix when the session is paused for one. */
   modelFix: ModelFixSeat[] | null;
   removedPersonaIds: string[];
+  sources: SessionSource[];
+  research: ResearchOutcome | null;
 }

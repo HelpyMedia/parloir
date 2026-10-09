@@ -93,6 +93,25 @@ export function rewriteCitations(
   });
 }
 
+/**
+ * Turn [S#] citations into markdown links to the registered pages, for
+ * display. Unknown IDs are dropped, as the deliverable drops them.
+ */
+export function linkCitations(text: string, sources: Pick<SessionSource, "id" | "title" | "url">[]): string {
+  if (sources.length === 0) return text;
+  const known = new Map(sources.map((s) => [s.id, s]));
+  return rewriteCitations(text, known, (ids) =>
+    ids
+      .map((id) => {
+        const s = known.get(id);
+        if (!s) return "";
+        const title = (s.title || s.url).replace(/["\\\n\r]/g, " ");
+        return `[\\[${id}\\]](<${s.url.replace(/[<>\s]/g, "")}> "${title}")`;
+      })
+      .join(""),
+  );
+}
+
 const MD_LINK = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/g;
 const BARE_URL = /https?:\/\/[^\s<>"'`)\]]+/g;
 

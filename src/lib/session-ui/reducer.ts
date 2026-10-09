@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/orchestrator/types";
+import type { SessionSource, StreamEvent } from "@/lib/orchestrator/types";
 import type { HydrationBundle, PersonaStatus, UIPersonaState, UISession } from "./types";
 
 export function initialState(bundle: HydrationBundle): UISession {
@@ -35,6 +35,8 @@ export function initialState(bundle: HydrationBundle): UISession {
     removedIds: bundle.removedPersonaIds ?? [],
     lastSeq: bundle.lastSeq,
     totalCostUsd: bundle.turns.reduce((acc, t) => acc + t.costUsd, 0),
+    sources: bundle.sources ?? [],
+    research: bundle.research ?? null,
   };
 }
 
@@ -163,12 +165,23 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
           ? { ...tc, result: event.result }
           : tc,
       );
-      return { ...state, personaState, live: { ...state.live, toolCalls } };
+      return {
+        ...state,
+        personaState,
+        live: { ...state.live, toolCalls },
+        sources: mergeSources(state.sources, sourcesIn(event.result)),
+      };
     }
 
     case "research_complete":
+      return {
+        ...state,
+        sources: mergeSources(state.sources, event.sources),
+        research: { status: "complete" },
+      };
+
     case "research_skipped":
-      return state;
+      return { ...state, research: { status: "skipped", reason: event.reason } };
 
     case "consensus_report": {
       const personaState = { ...state.personaState };
@@ -203,6 +216,29 @@ export function applyEvent(state: UISession, event: StreamEvent): UISession {
         live: event.recoverable ? state.live : null,
       };
   }
+}
+
+/** Add sources not seen yet; the registry numbers them, so IDs are stable. */
+function mergeSources(
+  current: SessionSource[],
+  incoming: Array<Pick<SessionSource, "id" | "url" | "title">>,
+): SessionSource[] {
+  const have = new Set(current.map((s) => s.id));
+  const added = incoming
+    .filter((s) => !have.has(s.id))
+    .map((s) => ({ excerpt: "", foundBy: "", phase: "critique" as const, round: 0, ...s }));
+  return added.length ? [...current, ...added] : current;
+}
+
+/** Sources a web_search tool result carries, if any. */
+function sourcesIn(result: unknown): Array<Pick<SessionSource, "id" | "url" | "title">> {
+  if (!result || typeof result !== "object") return [];
+  const list = (result as { sources?: unknown }).sources;
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (s): s is Pick<SessionSource, "id" | "url" | "title"> =>
+      Boolean(s) && typeof s.id === "string" && typeof s.url === "string" && typeof s.title === "string",
+  );
 }
 
 function updatePersona(

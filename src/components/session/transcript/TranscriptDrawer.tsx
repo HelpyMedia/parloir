@@ -2,10 +2,19 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
-import type { ConsensusReport, Persona, Phase, Turn } from "@/lib/orchestrator/types";
+import type {
+  ConsensusReport,
+  Persona,
+  Phase,
+  ResearchOutcome,
+  SessionSource,
+  Turn,
+} from "@/lib/orchestrator/types";
 import type { LiveTurn } from "@/lib/session-ui/types";
 import { ConsensusCard } from "./ConsensusCard";
 import { PhaseDivider } from "./PhaseDivider";
+import { ResearchCard } from "./ResearchCard";
+import { ResearchNotNeeded } from "./ResearchNotice";
 import { TurnCard } from "./TurnCard";
 
 interface Props {
@@ -15,9 +24,22 @@ interface Props {
   personas: Persona[];
   /** While paused nothing new arrives, and the pause overlay needs the screen. */
   paused?: boolean;
+  sources?: SessionSource[];
+  research?: ResearchOutcome | null;
+  /** The research phase is running. */
+  researching?: boolean;
 }
 
-export function TranscriptDrawer({ turns, live, consensusReports, personas, paused = false }: Props) {
+export function TranscriptDrawer({
+  turns,
+  live,
+  consensusReports,
+  personas,
+  paused = false,
+  sources = [],
+  research = null,
+  researching = false,
+}: Props) {
   const t = useTranslations("Council");
   const autoFollow = useRef(true);
 
@@ -59,16 +81,20 @@ export function TranscriptDrawer({ turns, live, consensusReports, personas, paus
       aria-label={t("transcriptLabel")}
     >
       <div className="mx-auto flex max-w-[960px] flex-col gap-3">
+        {researching && !turns.some((x) => x.phase === "research") && (
+          <p className="animate-pulse text-center text-xs text-[var(--color-evidence)]">{t("researchRunning")}</p>
+        )}
+        {research?.status === "skipped" && research.reason === "not_needed" && <ResearchNotNeeded />}
         {rendered.map((node, i) => (
-          <div key={i}>{renderItem(node, jumpToTurn)}</div>
+          <div key={i}>{renderItem(node, jumpToTurn, sources)}</div>
         ))}
-        {live && <LiveTurnCard live={live} personas={personas} />}
+        {live && <LiveTurnCard live={live} personas={personas} sources={sources} />}
       </div>
     </div>
   );
 }
 
-function LiveTurnCard({ live, personas }: { live: LiveTurn; personas: Persona[] }) {
+function LiveTurnCard({ live, personas, sources }: { live: LiveTurn; personas: Persona[]; sources: SessionSource[] }) {
   const persona = personas.find((p) => p.id === live.speakerId);
   const turn: Turn = {
     id: "live",
@@ -88,7 +114,7 @@ function LiveTurnCard({ live, personas }: { live: LiveTurn; personas: Persona[] 
     model: persona?.model ?? "",
     createdAt: new Date(),
   };
-  return <TurnCard turn={turn} live />;
+  return <TurnCard turn={turn} live sources={sources} />;
 }
 
 type Item =
@@ -124,12 +150,16 @@ function interleave(turns: Turn[], reports: ConsensusReport[]): Item[] {
   return items;
 }
 
-function renderItem(item: Item, onJump: (id: string) => void) {
+function renderItem(item: Item, onJump: (id: string) => void, sources: SessionSource[]) {
   switch (item.kind) {
     case "divider":
       return <PhaseDivider phase={item.phase} round={item.round} />;
     case "turn":
-      return <TurnCard turn={item.turn} onJumpToRef={onJump} />;
+      return item.turn.phase === "research" ? (
+        <ResearchCard turn={item.turn} sources={sources} />
+      ) : (
+        <TurnCard turn={item.turn} onJumpToRef={onJump} sources={sources} />
+      );
     case "consensus":
       return <ConsensusCard report={item.report} />;
   }

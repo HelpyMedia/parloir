@@ -4,6 +4,7 @@ import { ExportMenu } from "./ExportMenu";
 import { KeyArgumentsList } from "./KeyArgumentsList";
 import { MinorityViewList } from "./MinorityViewList";
 import { NextActionsList } from "./NextActionsList";
+import { SourcesSection } from "./SourcesSection";
 
 export function SynthesisPanel({ artifact }: { artifact: SynthesisArtifact }) {
   return (
@@ -12,6 +13,7 @@ export function SynthesisPanel({ artifact }: { artifact: SynthesisArtifact }) {
       <KeyArgumentsList artifact={artifact} />
       <MinorityViewList artifact={artifact} />
       <NextActionsList artifact={artifact} />
+      <SourcesSection artifact={artifact} />
       <ExportMenu artifact={artifact} />
     </div>
   );

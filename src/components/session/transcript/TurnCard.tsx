@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { accentVar } from "@/lib/session-ui/persona-accent";
-import type { Turn } from "@/lib/orchestrator/types";
+import type { SessionSource, Turn } from "@/lib/orchestrator/types";
 import { ReferenceChip } from "./ReferenceChip";
 import { ToolCallChip } from "./ToolCallChip";
 import { TurnMarkdown } from "./TurnMarkdown";
@@ -13,11 +13,12 @@ interface Props {
   turn: Turn;
   live?: boolean;
   onJumpToRef?: (turnId: string) => void;
+  sources?: SessionSource[];
 }
 
 const CONDENSED_CHARS = 420;
 
-export function TurnCard({ turn, live, onJumpToRef }: Props) {
+export function TurnCard({ turn, live, onJumpToRef, sources }: Props) {
   const t = useTranslations("Council");
   const [expanded, setExpanded] = useState(false);
   const showFull = live || expanded || turn.content.length <= CONDENSED_CHARS;
@@ -61,7 +62,7 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
       </header>
 
       <div className="relative">
-        <TurnMarkdown content={displayed} />
+        <TurnMarkdown content={displayed} sources={sources} />
         {live && (
           <span
             className="ml-0.5 inline-block h-4 w-[2px] animate-pulse align-middle"
@@ -82,7 +83,7 @@ export function TurnCard({ turn, live, onJumpToRef }: Props) {
       )}
 
       {(turn.toolCalls?.length ?? 0) > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-col items-start gap-1.5">
           {turn.toolCalls!.map((tc) => (
             <ToolCallChip key={tc.id} toolCall={tc} />
           ))}

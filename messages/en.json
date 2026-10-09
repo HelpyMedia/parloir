@@ -123,7 +123,15 @@
     "failedDialogBody": "These panelists were skipped because their model failed. Swap their models and run the debate again: your question and the rest of the panel are kept.",
     "failedDialogSwap": "Swap these models and try again",
     "failedDialogClose": "Close",
-    "failedDialogRestrictedNote": "Models that OpenRouter refuses are left out of default panels from now on."
+    "failedDialogRestrictedNote": "Models that OpenRouter refuses are left out of default panels from now on.",
+    "phaseResearch": "Research",
+    "researchNotNeeded": "No web research needed for this question.",
+    "researchNoCredits": "Web research needs OpenRouter credits (about $0.01–0.10 per debate). This council answered from the models' training data only and may not know recent products or prices.",
+    "researchNoCreditsLink": "Add credits on OpenRouter",
+    "researchNoKey": "Web research needs an OpenRouter key. This council answered from the models' training data only and may not know recent products or prices.",
+    "researchNoKeyLink": "Connect OpenRouter",
+    "researchFailed": "Web research failed for this debate. This council answered from the models' training data only and may not know recent products or prices.",
+    "researchDisabled": "Web research is turned off on this server. This council answered from the models' training data only and may not know recent products or prices."
   },
   "NewSession": {
     "eyebrow": "New session",
@@ -179,7 +187,9 @@
     "connectBodySelfHost": "Parloir runs debates on models you bring yourself: an API key (OpenRouter, Anthropic, OpenAI, Google) or a local server (Ollama, LM Studio).",
     "openSettings": "Open settings →",
     "localNoteTitle": "Heads up: local models only",
-    "localNoteBody": "The judge and the final summary need a model that reliably returns structured JSON. Small local models often can't. Use a capable local model, or connect OpenRouter as a fallback."
+    "localNoteBody": "The judge and the final summary need a model that reliably returns structured JSON. Small local models often can't. Use a capable local model, or connect OpenRouter as a fallback.",
+    "researchCreditHint": "Web research needs OpenRouter credits (about $0.01–0.10 per debate). Without credit, a panel of free models answers from training data only.",
+    "researchEstimate": "+ up to {cost} for web research, only when the question needs it."
   },
   "ModelPicker": {
     "choose": "Choose a model",
@@ -320,7 +330,17 @@
     "resume": "Resume",
     "seatMinPanel": "A debate needs at least two panelists.",
     "seatNotPaused": "The debate is no longer paused.",
-    "seatSaveFailed": "That change couldn't be saved. Try again."
+    "seatSaveFailed": "That change couldn't be saved. Try again.",
+    "phase_research": "Research",
+    "divider_research": "Web research",
+    "researchBrief": "Evidence brief",
+    "researchQueries": "Searched: {queries}",
+    "researchSources": "Sources ({count})",
+    "researchRunning": "Researching the question on the web before the panel speaks…",
+    "searched": "Searched: {query}",
+    "searching": "Searching: {query}…",
+    "searchUnavailable": "Search unavailable: {query}",
+    "sourcesTitle": "Sources"
   },
   "Personas": {
     "creative_synthesizer": "Creative Synthesizer",
